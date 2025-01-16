@@ -6,6 +6,19 @@ import dotenv from "dotenv";
 import cors from "cors";
 import { register, login, logout, getUserInfo } from "./routes/auth.js";
 import { postsystem, getsystems } from "./routes/system.js";
+import { sendVerificationCode, verifyCode } from "./routes/email.js";
+import {
+  handleQuantitativeSave,
+  handleQualitativeSave,
+  handleSelfAssessmentSave,
+  getQuantitativeData,
+  getQualitativeData,
+} from "./routes/selftest.js";
+import {
+  completeSelfTest,
+  getAssessmentResults,
+  getAssessmentStatuses,
+} from "./routes/result.js";
 
 dotenv.config();
 
@@ -19,29 +32,28 @@ app.use(cookieParser());
 // CORS configuration
 app.use(
   cors({
-    origin: "http://localhost:5173", // Replace with your frontend origin
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true, // Allow cookies to be sent
+    credentials: true,
   })
 );
 
 // Session configuration
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "default_secret", // Use a default if SESSION_SECRET is missing
+    secret: process.env.SESSION_SECRET || "default_secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true if using HTTPS
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      maxAge: 3600000, // 1 hour
+      maxAge: 3600000,
     },
   })
 );
 
 // Authentication middleware
 const requireAuth = (req, res, next) => {
-  console.log("세션 상태:", req.session);
   if (!req.session || !req.session.user) {
     return res.status(401).json({ message: "로그인이 필요합니다." });
   }
@@ -52,12 +64,27 @@ const requireAuth = (req, res, next) => {
 app.post("/register", register);
 app.post("/login", login);
 app.post("/logout", logout);
-app.get("/user", getUserInfo);
+app.get("/user", requireAuth, getUserInfo); // User 정보는 로그인 상태에서만 접근 가능
+
+// Email verification routes
+app.post("/email/send-verification-code", sendVerificationCode);
+app.post("/email/verify-code", verifyCode);
 
 // Systems routes
-app.post("/systems", requireAuth, postsystem); // 시스템 등록
-app.get("/systems", requireAuth, getsystems); // 시스템 목록 조회
+app.post("/systems", requireAuth, postsystem);
+app.get("/systems", requireAuth, getsystems);
 
+// Self-assessment routes
+app.post("/selftest/quantitative", requireAuth, handleQuantitativeSave);
+app.post("/selftest/qualitative", requireAuth, handleQualitativeSave);
+app.post("/selftest", requireAuth, handleSelfAssessmentSave);
+app.get("/selftest/quantitative", requireAuth, getQuantitativeData);
+app.get("/selftest/qualitative", requireAuth, getQualitativeData);
+
+// Assessment result routes
+app.post("/assessment/complete", requireAuth, completeSelfTest);
+app.get("/assessment/result", requireAuth, getAssessmentResults);
+app.get("/assessment/status", requireAuth, getAssessmentStatuses);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("서버 에러 발생:", err);
