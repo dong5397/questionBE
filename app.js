@@ -19,6 +19,7 @@ import {
   getAssessmentResults,
   getAssessmentStatuses,
 } from "./routes/result.js";
+import { registerExpert, loginExpert, logoutExpert } from "./routes/expert.js";
 
 dotenv.config();
 
@@ -85,6 +86,12 @@ app.get("/selftest/qualitative", requireAuth, getQualitativeData);
 app.post("/assessment/complete", requireAuth, completeSelfTest);
 app.get("/assessment/result", requireAuth, getAssessmentResults);
 app.get("/assessment/status", requireAuth, getAssessmentStatuses);
+
+// 전문가 회원관리 Route
+app.post("/register/expert", registerExpert);
+app.post("/login/expert", loginExpert);
+app.post("/logout/expert", logoutExpert);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("서버 에러 발생:", err);

@@ -5,9 +5,9 @@ SHOW TABLES;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 
-
-
-
+SELECT * FROM USER;
+SELECT * FROM expert;
+DELETE FROM USER WHERE id=10;
 -- 회원 테이블
 CREATE TABLE User (
     `id` INT AUTO_INCREMENT PRIMARY KEY, -- 회원 ID
@@ -35,6 +35,7 @@ CREATE TABLE expert (
     email VARCHAR(255) NOT NULL UNIQUE COMMENT '이메일',
     major_carrea VARCHAR(255) NOT NULL COMMENT '전문 경력',
     password VARCHAR(255) NOT NULL COMMENT '비밀번호',
+    member_type ENUM('admin', 'superadmin') NOT NULL DEFAULT 'admin' COMMENT '멤버 타입', -- 멤버 타입 필드 추가
     PRIMARY KEY (id)
 );
 
@@ -142,9 +143,10 @@ CREATE TABLE feedback (
     assignment_id INT NOT NULL COMMENT '담당 시스템 ID',
     feedback_content TEXT NOT NULL COMMENT '피드백 내용',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '피드백 생성 날짜',
-    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- 자가진단 결과 연결
-    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- 담당 시스템 연결
+    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- assessment_result 연결
+    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- assignment 연결
 );
+DROP TABLE assessment_result;
 
 
 -- 자가진단 결과 테이블
@@ -159,8 +161,9 @@ CREATE TABLE assessment_result (
     `grade` ENUM('S', 'A', 'B', 'C', 'D') NOT NULL COMMENT '등급', -- 등급
     FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE, -- systems 테이블과 연결
     FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE, -- User 테이블과 연결
-    FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- 자가진단 입력 연결
+    FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- self_assessment 연결
 );
+
 
 
 
