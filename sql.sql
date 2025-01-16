@@ -3,10 +3,10 @@ DROP  DATABASE test;
 CREATE  DATABASE test;
 SHOW TABLES;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-SELECT *FROM  self_assessment;
 
 
-SELECT * FROM USER;
+
+
 
 -- 회원 테이블
 CREATE TABLE User (
@@ -25,7 +25,29 @@ CREATE TABLE User (
     `feedback_id` INT DEFAULT NULL COMMENT '피드백 ID'
 );
 
+-- 전문가회원 테이블 
+CREATE TABLE expert (
+    id INT NOT NULL AUTO_INCREMENT COMMENT '전문가 ID',
+    name VARCHAR(255) NOT NULL COMMENT '전문가 이름',
+    institution_name VARCHAR(255) NOT NULL COMMENT '소속 기관명',
+    ofcps VARCHAR(255) NOT NULL COMMENT '전문가 직책',
+    phone_number VARCHAR(255) NOT NULL COMMENT '전화번호',
+    email VARCHAR(255) NOT NULL UNIQUE COMMENT '이메일',
+    major_carrea VARCHAR(255) NOT NULL COMMENT '전문 경력',
+    password VARCHAR(255) NOT NULL COMMENT '비밀번호',
+    PRIMARY KEY (id)
+);
 
+-- 슈퍼유저 테이블 
+CREATE TABLE SuperUser (
+    id INT NOT NULL AUTO_INCREMENT COMMENT '슈퍼유저 ID',
+    name VARCHAR(255) NOT NULL COMMENT '이름',
+    email VARCHAR(255) NOT NULL COMMENT '이메일',
+    password VARCHAR(255) NOT NULL COMMENT '비밀번호',
+    phone_number VARCHAR(255) NOT NULL COMMENT '전화번호',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입 날짜',
+    PRIMARY KEY (id)
+);
 
 -- 시스템 테이블
 CREATE TABLE systems (
@@ -115,14 +137,13 @@ CREATE TABLE qualitative (
 
 -- 피드백 테이블
 CREATE TABLE feedback (
-    `id` INT AUTO_INCREMENT NOT NULL, -- 피드백 ID
-    `self_assessment_id` INT NOT NULL COMMENT '자가진단 입력 ID',
-    `expert_id` INT NOT NULL COMMENT '전문가 ID',
-    `feedback_content` TEXT NOT NULL COMMENT '피드백 내용',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시간',
-    PRIMARY KEY (`id`),
-    FOREIGN KEY (`self_assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`expert_id`) REFERENCES User(`id`) ON DELETE CASCADE
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '피드백 ID',
+    assessment_result_id INT NOT NULL COMMENT '자가진단 결과 ID',
+    assignment_id INT NOT NULL COMMENT '담당 시스템 ID',
+    feedback_content TEXT NOT NULL COMMENT '피드백 내용',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '피드백 생성 날짜',
+    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- 자가진단 결과 연결
+    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- 담당 시스템 연결
 );
 
 
@@ -131,13 +152,16 @@ CREATE TABLE assessment_result (
     `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '결과 ID', -- 결과 ID
     `system_id` INT NOT NULL COMMENT '시스템 ID', -- 시스템 ID
     `user_id` INT NOT NULL COMMENT '회원 ID', -- 회원 ID
+    `assessment_id` INT NOT NULL COMMENT '자가진단 입력 ID', -- 자가진단 입력 ID
     `score` INT NOT NULL COMMENT '점수', -- 점수
     `feedback_status` ENUM('전문가 자문이 반영되기전입니다', '전문가 자문이 반영되었습니다') NOT NULL COMMENT '피드백 상태', -- 피드백 상태
     `completed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '완료 시간', -- 완료 시간
     `grade` ENUM('S', 'A', 'B', 'C', 'D') NOT NULL COMMENT '등급', -- 등급
     FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE, -- systems 테이블과 연결
-    FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE -- User 테이블과 연결
+    FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE, -- User 테이블과 연결
+    FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- 자가진단 입력 연결
 );
+
 
 
 
