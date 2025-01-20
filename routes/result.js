@@ -46,46 +46,43 @@ const calculateAssessmentScore = async (systemId) => {
 
 // 자가진단 완료 처리
 const completeSelfTest = async (req, res) => {
-  const { userId, systemId } = req.body;
+  const { systemId, userId } = req.body;
 
-  if (!userId || !systemId) {
-    return res.status(400).json({ message: "필수 데이터가 누락되었습니다." });
+  if (!systemId || !userId) {
+    return res.status(400).json({
+      message: "유효하지 않은 요청입니다. systemId와 userId를 확인하세요.",
+    });
   }
 
+  console.log("completeSelfTest called with:", { systemId, userId });
+
   try {
-    // self_assessment ID 가져오기
-    const [rows] = await pool.query(
-      "SELECT id FROM self_assessment WHERE user_id = ? AND system_id = ?",
-      [userId, systemId]
-    );
+    // 점수 및 등급 계산
+    const { score, grade } = await calculateAssessmentScore(systemId);
 
-    if (rows.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "해당 자가진단 데이터가 존재하지 않습니다." });
-    }
+    console.log("Calculated score and grade:", { score, grade });
 
-    const assessmentId = rows[0].id;
+    // 결과 저장
+    const query = `
+      INSERT INTO assessment_result (system_id, user_id, score, feedback_status, grade)
+      VALUES (?, ?, ?, '전문가 자문이 반영되기전입니다', ?)
+      ON DUPLICATE KEY UPDATE
+        score = VALUES(score),
+        grade = VALUES(grade),
+        feedback_status = '전문가 자문이 반영되기전입니다'
+    `;
+    const values = [systemId, userId, score, grade];
+    console.log("Executing query:", query, "with values:", values);
 
-    // 결과 삽입
-    await pool.query(
-      `
-      INSERT INTO assessment_result (user_id, system_id, assessment_id, score, feedback_status, grade)
-      VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        userId,
-        systemId,
-        assessmentId,
-        100,
-        "전문가 자문이 반영되기전입니다",
-        "A",
-      ]
-    );
+    await pool.query(query, values);
 
-    res.status(201).json({ message: "결과 저장 성공" });
+    res.status(200).json({
+      message: "자가진단 결과가 성공적으로 저장되었습니다.",
+      score,
+      grade,
+    });
   } catch (error) {
-    console.error("결과 저장 실패:", error);
+    console.error("자가진단 완료 실패:", error.message);
     res.status(500).json({
       message: "서버 내부 오류 발생",
       error: error.message,
