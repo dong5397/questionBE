@@ -187,5 +187,44 @@ const deleteSystem = async (req, res) => {
     res.status(500).json({ message: "시스템 삭제 중 오류가 발생했습니다." });
   }
 };
+const getAllSystems = async (req, res) => {
+  try {
+    const [systems] = await pool.query(
+      `SELECT 
+          systems.id AS system_id,
+          systems.name AS system_name,
+          systems.purpose,
+          systems.min_subjects,
+          systems.max_subjects,
+          systems.assessment_status,
+          User.institution_name AS user_institution_name,
+          User.representative_name AS user_representative_name,
+          User.email AS user_email
+       FROM systems
+       INNER JOIN User ON systems.user_id = User.id
+       ORDER BY systems.created_at DESC`
+    );
 
-export { deleteSystem, updateSystem, getSystemById, postsystem, getsystems };
+    console.log("✅ [DB] 모든 시스템 목록 조회 성공:", systems);
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "모든 시스템 데이터를 성공적으로 가져왔습니다.",
+      data: systems,
+    });
+  } catch (err) {
+    console.error("❌ [DB] 모든 시스템 목록 조회 실패:", err);
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "시스템 목록 조회 중 오류가 발생했습니다.",
+      error: err,
+    });
+  }
+};
+export {
+  deleteSystem,
+  updateSystem,
+  getSystemById,
+  postsystem,
+  getsystems,
+  getAllSystems,
+};

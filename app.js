@@ -10,6 +10,7 @@ import {
   loginExpert,
   logoutExpert,
   getExpertInfo,
+  getAllExperts,
 } from "./routes/expert.js";
 import { postsystem, getsystems } from "./routes/system.js";
 import { sendVerificationCode, verifyCode } from "./routes/email.js";
@@ -25,7 +26,6 @@ import {
   getAssessmentResults,
   getAssessmentStatuses,
 } from "./routes/result.js";
-
 import {
   getAssignedSystems,
   getSystemAssessmentResult,
@@ -33,6 +33,12 @@ import {
   updateFeedback,
   SystemsResult,
 } from "./routes/feedback.js";
+import {
+  loginSuperUser,
+  matchExpertsToSystem,
+  getMatchedExperts,
+  getAllSystems,
+} from "./routes/superuser.js";
 
 dotenv.config();
 
@@ -68,23 +74,43 @@ app.use(
 
 // 인증 미들웨어
 const requireAuth = (req, res, next) => {
-  if (!req.session || (!req.session.user && !req.session.expert)) {
+  console.log("세션 상태:", req.session); // 디버깅용 로그 추가
+  if (
+    !req.session ||
+    (!req.session.user && !req.session.expert && !req.session.superuser)
+  ) {
     return res.status(401).json({ message: "로그인이 필요합니다." });
   }
   next();
 };
 
+// 슈퍼유저 전용 인증 미들웨어
+const requireSuperUser = (req, res, next) => {
+  console.log("슈퍼유저 세션 상태:", req.session?.superuser); // 세션 상태 출력
+  if (!req.session?.superuser) {
+    return res.status(403).json({ message: "슈퍼유저 권한이 필요합니다." });
+  }
+  next();
+};
+
+// 라우트 정리
 // 기관회원 라우트
 app.post("/register", register);
 app.post("/login", login);
 app.post("/logout", logout);
-app.get("/user", requireAuth, getUserInfo); // 로그인 상태에서만 접근 가능
+app.get("/user", requireAuth, getUserInfo);
 
 // 전문가 회원관리 라우트
 app.post("/register/expert", registerExpert);
 app.post("/login/expert", loginExpert);
 app.post("/logout/expert", logoutExpert);
-app.get("/expert", requireAuth, getExpertInfo); // 🔹 전문가 로그인 상태 확인
+app.get("/expert", requireAuth, getExpertInfo);
+app.get("/all-expert", requireAuth, getAllExperts);
+
+// 슈퍼유저 라우트
+app.post("/login/superuser", loginSuperUser);
+app.post("/match-experts", requireSuperUser, matchExpertsToSystem);
+app.get("/matched-experts", requireSuperUser, getMatchedExperts);
 
 // 이메일 인증 라우트
 app.post("/email/send-verification-code", sendVerificationCode);
@@ -93,6 +119,7 @@ app.post("/email/verify-code", verifyCode);
 // 시스템 라우트
 app.post("/systems", requireAuth, postsystem);
 app.get("/systems", requireAuth, getsystems);
+app.get("/all-systems", requireSuperUser, getAllSystems);
 
 // 자기 평가 라우트
 app.post("/selftest/quantitative", requireAuth, handleQuantitativeSave);
@@ -106,18 +133,26 @@ app.post("/assessment/complete", requireAuth, completeSelfTest);
 app.get("/assessment/result", requireAuth, getAssessmentResults);
 app.get("/assessment/status", requireAuth, getAssessmentStatuses);
 
-// 전문가회원 관련(배정된시스템 조회, 자가진단 결과 조회, 피드백 추가, 피드백 수정 ) 라우트
-app.get("/assigned-systems", getAssignedSystems);
-app.get("/system-result", getSystemAssessmentResult);
-app.post("/add-feedback", addFeedback);
-app.put("/update-feedback", updateFeedback);
-app.get("/systems-results", SystemsResult);
+// 전문가 회원 관련 라우트
+app.get("/assigned-systems", requireAuth, getAssignedSystems);
+app.get("/system-result", requireAuth, getSystemAssessmentResult);
+app.post("/add-feedback", requireAuth, addFeedback);
+app.put("/update-feedback", requireAuth, updateFeedback);
+app.get("/systems-results", requireAuth, SystemsResult);
+
 // 에러 처리 미들웨어
 app.use((err, req, res, next) => {
-  console.error("서버 에러 발생:", err);
+  console.error(`서버 에러 발생 [${req.method} ${req.path}]:`, err);
   res
     .status(500)
     .json({ message: "서버 오류가 발생했습니다.", error: err.message });
+});
+
+// 404 에러 처리
+app.use((req, res) => {
+  res
+    .status(404)
+    .json({ message: `요청한 경로를 찾을 수 없습니다: ${req.path}` });
 });
 
 // 서버 초기화

@@ -87,7 +87,6 @@ const handleSelfAssessmentSave = async (req, res) => {
 
 const handleQuantitativeSave = async (req, res) => {
   const { quantitativeResponses } = req.body;
-  console.log("✅ [API] 정량 설문 저장 요청 데이터:", req.body);
 
   if (!quantitativeResponses || !Array.isArray(quantitativeResponses)) {
     return res
@@ -95,51 +94,39 @@ const handleQuantitativeSave = async (req, res) => {
       .json({ message: "Invalid quantitative responses format." });
   }
 
-  const query = `
-    INSERT INTO quantitative (
-      question_number, question, response, additional_comment, system_id, user_id
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-      response = VALUES(response),
-      additional_comment = VALUES(additional_comment)
-  `;
+  for (const response of quantitativeResponses) {
+    const { questionNumber, response: answer, systemId } = response;
+
+    if (!questionNumber || !answer || !systemId) {
+      console.error("Invalid data received:", response);
+      return res.status(400).json({
+        message: "Missing required fields in quantitative response.",
+      });
+    }
+  }
 
   try {
-    for (const response of quantitativeResponses) {
-      const {
-        questionNumber,
-        question,
-        response: answer,
-        additionalComment,
-        systemId,
-        userId,
-      } = response;
+    const query = `
+      INSERT INTO quantitative (
+        question_number, response, system_id
+      ) VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        response = VALUES(response)
+    `;
 
-      if (!questionNumber || !answer || !systemId || !userId || !question) {
-        console.error("Invalid response:", response);
-        return res.status(400).json({
-          message: "Missing required fields in quantitative response.",
-        });
-      }
-
-      const values = [
-        questionNumber,
-        question,
-        answer,
-        additionalComment || null,
-        systemId,
-        userId,
-      ];
-
-      console.log("Saving quantitative response:", values);
-      await pool.query(query, values);
+    for (const {
+      questionNumber,
+      response: answer,
+      systemId,
+    } of quantitativeResponses) {
+      await pool.query(query, [questionNumber, answer, systemId]);
     }
 
     res
       .status(200)
-      .json({ message: "정량 평가 데이터가 성공적으로 저장되었습니다." });
+      .json({ message: "Quantitative responses saved successfully." });
   } catch (error) {
-    console.error("Error saving quantitative data:", error.message);
+    console.error("Error saving quantitative responses:", error.message);
     res
       .status(500)
       .json({ message: "Internal server error.", error: error.message });
@@ -148,45 +135,42 @@ const handleQuantitativeSave = async (req, res) => {
 
 // Save Qualitative Data
 const handleQualitativeSave = async (req, res) => {
-  const {
-    questionNumber,
-    response,
-    additionalComment,
-    systemId,
-    userId,
-    indicator,
-  } = req.body;
+  const { questionNumber, response, additionalComment, systemId, userId } =
+    req.body;
 
-  if (!questionNumber || !systemId || !userId || !indicator) {
+  if (!questionNumber || !response || !systemId || !userId) {
+    console.error("Missing fields in request:", {
+      questionNumber,
+      response,
+      systemId,
+      userId,
+    });
     return res.status(400).json({ message: "필수 필드가 누락되었습니다." });
   }
 
   const query = `
     INSERT INTO qualitative (
-      question_number, indicator, response, additional_comment, system_id, user_id
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      question_number, response, additional_comment, system_id, user_id
+    ) VALUES (?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       response = VALUES(response),
       additional_comment = VALUES(additional_comment)
   `;
 
-  const values = [
-    questionNumber,
-    indicator,
-    response || "해당없음",
-    additionalComment || null,
-    systemId,
-    userId,
-  ];
-
   try {
-    await pool.query(query, values);
-    res
-      .status(200)
-      .json({ message: "정성 설문 데이터가 성공적으로 저장되었습니다." });
+    await pool.query(query, [
+      questionNumber,
+      response,
+      additionalComment || "",
+      systemId,
+      userId,
+    ]);
+    res.status(200).json({ message: "Response saved successfully." });
   } catch (error) {
-    console.error("❌ 정성 설문 저장 실패:", error.message);
-    res.status(500).json({ message: "서버 오류", error: error.message });
+    console.error("Error saving qualitative response:", error.message);
+    res
+      .status(500)
+      .json({ message: "Internal server error.", error: error.message });
   }
 };
 

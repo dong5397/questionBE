@@ -12,19 +12,19 @@ const getAssignedSystems = async (req, res) => {
 
   try {
     const query = `
-      SELECT s.id AS system_id, s.name AS system_name, u.institution_name, 
-             ar.score, ar.grade, ar.feedback_status
-      FROM assignment a
-      JOIN systems s ON a.systems_id = s.id
-      JOIN User u ON s.user_id = u.id
-      LEFT JOIN assessment_result ar ON s.id = ar.system_id
-      WHERE a.expert_id = ?;
-    `;
+        SELECT s.id AS system_id, s.name AS system_name, u.institution_name, 
+               ar.score, ar.grade, ar.feedback_status
+        FROM assignment a
+        JOIN systems s ON a.systems_id = s.id
+        JOIN User u ON s.user_id = u.id
+        LEFT JOIN assessment_result ar ON s.id = ar.system_id
+        WHERE a.expert_id = ?;
+      `;
 
     const [results] = await pool.query(query, [expertId]);
 
     if (results.length === 0) {
-      return res.status(404).json({ message: "배정된 시스템이 없습니다." });
+      return res.status(200).json([]); // 빈 배열 반환
     }
 
     res.status(200).json(results);
@@ -57,7 +57,9 @@ const getSystemAssessmentResult = async (req, res) => {
     const [results] = await pool.query(query, [systemId]);
 
     if (results.length === 0) {
-      return res.status(404).json({ message: "자가진단 결과가 없습니다." });
+      return res
+        .status(404)
+        .json({ message: "자가진단 결과를 찾을 수 없습니다." });
     }
 
     res.status(200).json(results[0]);
@@ -80,8 +82,12 @@ const addFeedback = async (req, res) => {
   try {
     const query = `
       INSERT INTO feedback (assessment_result_id, assignment_id, feedback_content)
-      VALUES (?, (SELECT id FROM assignment WHERE expert_id = ? AND systems_id = 
-                 (SELECT system_id FROM assessment_result WHERE id = ?)), ?)
+      VALUES (
+        ?, 
+        (SELECT id FROM assignment WHERE expert_id = ? AND systems_id = 
+         (SELECT system_id FROM assessment_result WHERE id = ?)), 
+        ?
+      )
       ON DUPLICATE KEY UPDATE feedback_content = VALUES(feedback_content);
     `;
 
@@ -92,7 +98,6 @@ const addFeedback = async (req, res) => {
       feedbackContent,
     ]);
 
-    // 피드백을 추가하면 assessment_result의 상태도 업데이트
     await pool.query(
       `
       UPDATE assessment_result 
@@ -124,8 +129,10 @@ const updateFeedback = async (req, res) => {
       UPDATE feedback 
       SET feedback_content = ? 
       WHERE assessment_result_id = ? 
-      AND assignment_id = (SELECT id FROM assignment WHERE expert_id = ? 
-                           AND systems_id = (SELECT system_id FROM assessment_result WHERE id = ?));
+      AND assignment_id = (
+        SELECT id FROM assignment WHERE expert_id = ? 
+        AND systems_id = (SELECT system_id FROM assessment_result WHERE id = ?)
+      );
     `;
 
     const [result] = await pool.query(query, [
@@ -148,7 +155,6 @@ const updateFeedback = async (req, res) => {
 
 /**
  * 🔹 기관회원이 등록한 시스템의 자가진단 결과 및 전문가 피드백 조회
- * GET /user/systems-results?userId=기관회원ID
  */
 const SystemsResult = async (req, res) => {
   const { userId } = req.query;
@@ -159,16 +165,16 @@ const SystemsResult = async (req, res) => {
 
   try {
     const query = `
-        SELECT s.id AS system_id, s.name AS system_name, 
-               ar.score, ar.grade, ar.feedback_status, ar.completed_at,
-               f.feedback_content, e.name AS expert_name
-        FROM systems s
-        LEFT JOIN assessment_result ar ON s.id = ar.system_id
-        LEFT JOIN assignment a ON s.id = a.systems_id
-        LEFT JOIN feedback f ON ar.id = f.assessment_result_id
-        LEFT JOIN expert e ON a.expert_id = e.id
-        WHERE s.user_id = ?;
-      `;
+      SELECT s.id AS system_id, s.name AS system_name, 
+             ar.score, ar.grade, ar.feedback_status, ar.completed_at,
+             f.feedback_content, e.name AS expert_name
+      FROM systems s
+      LEFT JOIN assessment_result ar ON s.id = ar.system_id
+      LEFT JOIN assignment a ON s.id = a.systems_id
+      LEFT JOIN feedback f ON ar.id = f.assessment_result_id
+      LEFT JOIN expert e ON a.expert_id = e.id
+      WHERE s.user_id = ?;
+    `;
 
     const [results] = await pool.query(query, [userId]);
 
