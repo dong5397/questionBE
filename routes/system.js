@@ -106,4 +106,86 @@ const getsystems = async (req, res) => {
   }
 };
 
-export { postsystem, getsystems };
+// 특정 시스템 상세 정보 조회
+const getSystemById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [system] = await pool.query(
+      `SELECT 
+          systems.id AS system_id,
+          systems.name AS system_name,
+          systems.purpose,
+          systems.min_subjects,
+          systems.max_subjects,
+          systems.assessment_status,
+          User.institution_name,
+          User.representative_name
+       FROM systems
+       INNER JOIN User ON systems.user_id = User.id
+       WHERE systems.id = ?`,
+      [id]
+    );
+
+    if (system.length === 0) {
+      return res.status(404).json({ message: "시스템을 찾을 수 없습니다." });
+    }
+
+    res.status(200).json(system[0]);
+  } catch (err) {
+    console.error("❌ [DB] 시스템 상세 조회 실패:", err);
+    res.status(500).json({ message: "시스템 조회 중 오류가 발생했습니다." });
+  }
+};
+
+// 시스템 업데이트
+const updateSystem = async (req, res) => {
+  const { id } = req.params;
+  const { name, purpose, min_subjects, max_subjects } = req.body;
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE systems
+       SET name = ?, purpose = ?, min_subjects = ?, max_subjects = ?
+       WHERE id = ?`,
+      [name, purpose, min_subjects, max_subjects, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "시스템을 찾을 수 없습니다." });
+    }
+
+    res
+      .status(200)
+      .json({ message: "시스템 정보가 성공적으로 업데이트되었습니다." });
+  } catch (err) {
+    console.error("❌ [DB] 시스템 업데이트 실패:", err);
+    res
+      .status(500)
+      .json({ message: "시스템 업데이트 중 오류가 발생했습니다." });
+  }
+};
+
+// 시스템 삭제
+const deleteSystem = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      `DELETE FROM systems
+       WHERE id = ?`,
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "시스템을 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ message: "시스템이 성공적으로 삭제되었습니다." });
+  } catch (err) {
+    console.error("❌ [DB] 시스템 삭제 실패:", err);
+    res.status(500).json({ message: "시스템 삭제 중 오류가 발생했습니다." });
+  }
+};
+
+export { deleteSystem, updateSystem, getSystemById, postsystem, getsystems };

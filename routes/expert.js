@@ -142,5 +142,16 @@ const logoutExpert = (req, res) => {
   });
 };
 
-export { registerExpert, loginExpert, logoutExpert };
+// 🔹 전문가 정보 가져오기 (로그인 상태 유지)
+const getExpertInfo = (req, res) => {
+  if (!req.session || !req.session.expert) {
+    return res
+      .status(401)
+      .json({ resultCode: "F-1", msg: "로그인이 필요합니다." });
+  }
+  res.status(200).json({ resultCode: "S-1", expert: req.session.expert });
+};
+
+export { registerExpert, loginExpert, logoutExpert, getExpertInfo };
+
 export default router;
