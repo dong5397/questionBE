@@ -4,10 +4,6 @@ CREATE  DATABASE test;
 SHOW TABLES;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-
-SELECT * FROM USER;
-SELECT * FROM expert;
-DELETE FROM USER WHERE id=10;
 -- 회원 테이블
 CREATE TABLE User (
     `id` INT AUTO_INCREMENT PRIMARY KEY, -- 회원 ID
@@ -25,6 +21,8 @@ CREATE TABLE User (
     `feedback_id` INT DEFAULT NULL COMMENT '피드백 ID'
 );
 
+
+
 -- 전문가회원 테이블 
 CREATE TABLE expert (
     id INT NOT NULL AUTO_INCREMENT COMMENT '전문가 ID',
@@ -35,9 +33,9 @@ CREATE TABLE expert (
     email VARCHAR(255) NOT NULL UNIQUE COMMENT '이메일',
     major_carrea VARCHAR(255) NOT NULL COMMENT '전문 경력',
     password VARCHAR(255) NOT NULL COMMENT '비밀번호',
-    member_type ENUM('admin', 'superadmin') NOT NULL DEFAULT 'admin' COMMENT '멤버 타입', -- 멤버 타입 필드 추가
     PRIMARY KEY (id)
 );
+
 
 -- 슈퍼유저 테이블 
 CREATE TABLE SuperUser (
@@ -49,6 +47,23 @@ CREATE TABLE SuperUser (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입 날짜',
     PRIMARY KEY (id)
 );
+ALTER TABLE SuperUser
+ADD COLUMN member_type VARCHAR(50) NOT NULL DEFAULT 'superuser' COMMENT '회원 유형';
+
+INSERT INTO SuperUser (name, email, password, phone_number) 
+VALUES (
+    '김동욱', 
+    'test@test', 
+    '5397', 
+    '010-1234-5678'
+);
+UPDATE SuperUser
+SET member_type = 'superuser';
+
+DELETE FROM superuser WHERE name="김동욱";
+SELECT *FROM SuperUser;
+
+
 
 -- 시스템 테이블
 CREATE TABLE systems (
@@ -68,6 +83,7 @@ CREATE TABLE systems (
     FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE
 );
 
+SELECT * FROM systems;
 -- 자가진단 입력 테이블
 CREATE TABLE self_assessment (
     `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '입력 ID',
@@ -87,20 +103,21 @@ CREATE TABLE self_assessment (
 );
 ALTER TABLE self_assessment ADD COLUMN homepage_privacy VARCHAR(255) DEFAULT '없음';
 
-
+SELECT * FROM ASSIGNMENT;
 -- 전문가회원 - 시스템 (N:M) 담당 테이블
-CREATE TABLE assignment (
+CREATE TABLE assignment (	
     `id` INT NOT NULL AUTO_INCREMENT COMMENT '담당 ID',
-    `user_id` INT NOT NULL COMMENT '전문가 ID',
+    `expert_id` INT NOT NULL COMMENT '전문가 ID',
     `systems_id` INT NOT NULL COMMENT '시스템 ID',
     `assigned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '할당 날짜',
     `feedback_status` BOOLEAN NOT NULL COMMENT '피드백 완료 여부',
     PRIMARY KEY (`id`),
-    FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`expert_id`) REFERENCES expert(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`systems_id`) REFERENCES systems(`id`) ON DELETE CASCADE
 );
 
 
+SELECT * FROM assignment;
 -- 정량 문항 테이블
 CREATE TABLE quantitative (
     `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '문항 ID', -- 문항 ID
@@ -117,6 +134,11 @@ CREATE TABLE quantitative (
     FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE, -- 외래 키 설정
     UNIQUE KEY unique_question (question_number, system_id) -- 고유 키 설정
 );
+
+ALTER TABLE quantitative MODIFY question TEXT NULL;
+
+SELECT * FROM quantitative;
+
 
 
 CREATE TABLE qualitative (
@@ -135,6 +157,8 @@ CREATE TABLE qualitative (
     UNIQUE KEY unique_question (question_number, system_id)
 );
 
+SELECT * FROM systems;
+
 
 -- 피드백 테이블
 CREATE TABLE feedback (
@@ -143,12 +167,11 @@ CREATE TABLE feedback (
     assignment_id INT NOT NULL COMMENT '담당 시스템 ID',
     feedback_content TEXT NOT NULL COMMENT '피드백 내용',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '피드백 생성 날짜',
-    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- assessment_result 연결
-    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- assignment 연결
+    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- 자가진단 결과 연결
+    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- 담당 시스템 연결
 );
-DROP TABLE assessment_result;
 
-
+SELECT * FROM assessment_result;
 -- 자가진단 결과 테이블
 CREATE TABLE assessment_result (
     `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '결과 ID', -- 결과 ID
@@ -161,14 +184,7 @@ CREATE TABLE assessment_result (
     `grade` ENUM('S', 'A', 'B', 'C', 'D') NOT NULL COMMENT '등급', -- 등급
     FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE, -- systems 테이블과 연결
     FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE, -- User 테이블과 연결
-    FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- self_assessment 연결
+    FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- 자가진단 입력 연결
 );
 
-
-
-
-
-
-
-
-
+select * from assessment_result
