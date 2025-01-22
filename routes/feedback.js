@@ -6,8 +6,13 @@ import pool from "../db/connection.js";
 const getAssignedSystems = async (req, res) => {
   const { expertId } = req.query;
 
+  console.log("✅ [getAssignedSystems] Received expertId:", expertId);
+
   if (!expertId) {
-    return res.status(400).json({ message: "전문가 ID가 필요합니다." });
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "전문가 ID가 필요합니다.",
+    });
   }
 
   try {
@@ -21,16 +26,27 @@ const getAssignedSystems = async (req, res) => {
         WHERE a.expert_id = ?;
       `;
 
+    console.log("🟡 [getAssignedSystems] Running query:", query);
+
     const [results] = await pool.query(query, [expertId]);
 
-    if (results.length === 0) {
-      return res.status(200).json([]); // 빈 배열 반환
-    }
+    console.log("✅ [getAssignedSystems] Query results:", results);
 
-    res.status(200).json(results);
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "매칭된 시스템 조회 성공",
+      data: results,
+    });
   } catch (error) {
-    console.error("배정된 시스템 조회 실패:", error.message);
-    res.status(500).json({ message: "서버 오류 발생", error: error.message });
+    console.error(
+      "❌ [getAssignedSystems] 배정된 시스템 조회 실패:",
+      error.message
+    );
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
   }
 };
 
@@ -40,8 +56,13 @@ const getAssignedSystems = async (req, res) => {
 const getSystemAssessmentResult = async (req, res) => {
   const { systemId } = req.query;
 
+  console.log("✅ [getSystemAssessmentResult] Received systemId:", systemId);
+
   if (!systemId) {
-    return res.status(400).json({ message: "시스템 ID가 필요합니다." });
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "시스템 ID가 필요합니다.",
+    });
   }
 
   try {
@@ -54,113 +75,49 @@ const getSystemAssessmentResult = async (req, res) => {
       WHERE ar.system_id = ?;
     `;
 
+    console.log("🟡 [getSystemAssessmentResult] Running query:", query);
+
     const [results] = await pool.query(query, [systemId]);
 
+    console.log("✅ [getSystemAssessmentResult] Query results:", results);
+
     if (results.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "자가진단 결과를 찾을 수 없습니다." });
-    }
-
-    res.status(200).json(results[0]);
-  } catch (error) {
-    console.error("자가진단 결과 조회 실패:", error.message);
-    res.status(500).json({ message: "서버 오류 발생", error: error.message });
-  }
-};
-
-/**
- * 🔹 자가진단 결과에 피드백 추가
- */
-const addFeedback = async (req, res) => {
-  const { assessmentId, expertId, feedbackContent } = req.body;
-
-  if (!assessmentId || !expertId || !feedbackContent) {
-    return res.status(400).json({ message: "모든 필드를 입력해야 합니다." });
-  }
-
-  try {
-    const query = `
-      INSERT INTO feedback (assessment_result_id, assignment_id, feedback_content)
-      VALUES (
-        ?, 
-        (SELECT id FROM assignment WHERE expert_id = ? AND systems_id = 
-         (SELECT system_id FROM assessment_result WHERE id = ?)), 
-        ?
-      )
-      ON DUPLICATE KEY UPDATE feedback_content = VALUES(feedback_content);
-    `;
-
-    await pool.query(query, [
-      assessmentId,
-      expertId,
-      assessmentId,
-      feedbackContent,
-    ]);
-
-    await pool.query(
-      `
-      UPDATE assessment_result 
-      SET feedback_status = '전문가 자문이 반영되었습니다' 
-      WHERE id = ?;
-    `,
-      [assessmentId]
-    );
-
-    res.status(200).json({ message: "피드백이 성공적으로 저장되었습니다." });
-  } catch (error) {
-    console.error("피드백 저장 실패:", error.message);
-    res.status(500).json({ message: "서버 오류 발생", error: error.message });
-  }
-};
-
-/**
- * 🔹 자가진단 결과 피드백 수정
- */
-const updateFeedback = async (req, res) => {
-  const { assessmentId, expertId, feedbackContent } = req.body;
-
-  if (!assessmentId || !expertId || !feedbackContent) {
-    return res.status(400).json({ message: "모든 필드를 입력해야 합니다." });
-  }
-
-  try {
-    const query = `
-      UPDATE feedback 
-      SET feedback_content = ? 
-      WHERE assessment_result_id = ? 
-      AND assignment_id = (
-        SELECT id FROM assignment WHERE expert_id = ? 
-        AND systems_id = (SELECT system_id FROM assessment_result WHERE id = ?)
+      console.warn(
+        "⚠️ [getSystemAssessmentResult] No results found for systemId:",
+        systemId
       );
-    `;
-
-    const [result] = await pool.query(query, [
-      feedbackContent,
-      assessmentId,
-      expertId,
-      assessmentId,
-    ]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "피드백을 찾을 수 없습니다." });
+      return res.status(404).json({
+        resultCode: "F-1",
+        msg: "자가진단 결과를 찾을 수 없습니다.",
+      });
     }
 
-    res.status(200).json({ message: "피드백이 성공적으로 수정되었습니다." });
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "자가진단 결과 조회 성공",
+      data: results[0],
+    });
   } catch (error) {
-    console.error("피드백 수정 실패:", error.message);
-    res.status(500).json({ message: "서버 오류 발생", error: error.message });
+    console.error(
+      "❌ [getSystemAssessmentResult] 자가진단 결과 조회 실패:",
+      error.message
+    );
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
   }
 };
 
-/**
- * 🔹 기관회원이 등록한 시스템의 자가진단 결과 및 전문가 피드백 조회
- */
 const SystemsResult = async (req, res) => {
   const { userId } = req.query;
 
   if (!userId) {
-    return res.status(400).json({ message: "기관회원 ID가 필요합니다." });
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "기관회원 ID가 필요합니다.",
+    });
   }
 
   try {
@@ -178,23 +135,206 @@ const SystemsResult = async (req, res) => {
 
     const [results] = await pool.query(query, [userId]);
 
-    if (results.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "등록된 시스템이 없거나 자가진단 결과가 없습니다." });
-    }
-
-    res.status(200).json(results);
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "시스템 결과 조회 성공",
+      data: results,
+    });
   } catch (error) {
     console.error("기관회원 시스템 결과 조회 실패:", error.message);
-    res.status(500).json({ message: "서버 오류 발생", error: error.message });
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
+  }
+};
+const updateQuantitativeFeedback = async (req, res) => {
+  const { systemId, feedbackResponses } = req.body;
+
+  if (!systemId || !Array.isArray(feedbackResponses)) {
+    console.error("Invalid data format:", { systemId, feedbackResponses });
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "잘못된 요청 형식입니다. 'systemId' 및 'feedbackResponses'가 필요합니다.",
+    });
+  }
+
+  console.log("Received systemId:", systemId);
+  console.log("Received feedbackResponses:", feedbackResponses);
+
+  try {
+    const query = `
+      INSERT INTO quantitative (
+        question_number, system_id, feedback
+      )
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE feedback = VALUES(feedback);
+    `;
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    for (const { questionNumber, feedback } of feedbackResponses) {
+      await connection.query(query, [
+        questionNumber,
+        systemId,
+        feedback || "피드백 없음", // 기본값 설정
+      ]);
+    }
+
+    await connection.commit();
+    connection.release();
+
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "정량 피드백 업데이트 성공",
+    });
+  } catch (error) {
+    console.error("Error updating feedback:", error.message);
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 🔹 정성 피드백 업데이트
+ */
+const updateQualitativeFeedback = async (req, res) => {
+  const { systemId, feedbackResponses } = req.body;
+
+  if (!systemId || !feedbackResponses || !Array.isArray(feedbackResponses)) {
+    console.error("Invalid request data:", { systemId, feedbackResponses });
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "잘못된 요청 형식입니다. 'systemId' 및 'feedbackResponses'가 필요합니다.",
+    });
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    const query = `
+      UPDATE qualitative
+      SET feedback = ?, additional_comment = ?, response = ?
+      WHERE question_number = ? AND system_id = ?
+    `;
+
+    await connection.beginTransaction();
+
+    for (const response of feedbackResponses) {
+      const {
+        questionNumber,
+        feedback,
+        additionalComment,
+        response: userResponse,
+      } = response;
+
+      if (
+        typeof questionNumber !== "number" ||
+        typeof feedback !== "string" ||
+        typeof additionalComment !== "string" ||
+        typeof userResponse !== "string"
+      ) {
+        console.error("Invalid feedback response:", response);
+        throw new Error("피드백 데이터 형식이 잘못되었습니다.");
+      }
+
+      await connection.query(query, [
+        feedback,
+        additionalComment,
+        userResponse,
+        questionNumber,
+        systemId,
+      ]);
+    }
+
+    console.log("Feedbacks updated successfully for system_id:", systemId);
+
+    // ✅ 전문가 자문 상태 업데이트
+    const updateStatusQuery = `
+      UPDATE assessment_result
+      SET feedback_status = '전문가 자문이 반영되었습니다'
+      WHERE system_id = ?
+    `;
+
+    const [updateResult] = await connection.query(updateStatusQuery, [
+      systemId,
+    ]);
+    console.log(
+      "Feedback status updated:",
+      updateResult.affectedRows,
+      "rows affected"
+    );
+
+    await connection.commit();
+    console.log("Transaction committed successfully");
+
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "정성 피드백 및 상태 업데이트 성공",
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("정성 피드백 업데이트 실패:", error.message);
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+const updateFeedbackStatus = async (req, res) => {
+  const { systemId } = req.body;
+
+  if (!systemId) {
+    return res.status(400).json({
+      resultCode: "F-1",
+      msg: "시스템 ID가 필요합니다.",
+    });
+  }
+
+  const query = `
+    UPDATE assessment_result
+    SET feedback_status = '전문가 자문이 반영되었습니다'
+    WHERE system_id = ?
+  `;
+
+  try {
+    const [result] = await pool.query(query, [systemId]);
+    console.log(`Feedback status updated:`, result);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        resultCode: "F-1",
+        msg: "해당 시스템 ID에 대한 결과를 찾을 수 없습니다.",
+      });
+    }
+
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "피드백 상태 업데이트 성공",
+    });
+  } catch (error) {
+    console.error("Error updating feedback status:", error.message);
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
   }
 };
 
 export {
   getAssignedSystems,
   getSystemAssessmentResult,
-  addFeedback,
-  updateFeedback,
   SystemsResult,
+  updateQuantitativeFeedback,
+  updateQualitativeFeedback,
+  updateFeedbackStatus,
 };

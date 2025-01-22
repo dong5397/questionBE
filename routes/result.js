@@ -116,12 +116,14 @@ const getAssessmentResults = async (req, res) => {
   }
 
   const query = `
-    SELECT ar.id, ar.system_id, ar.score, ar.feedback_status, ar.grade, ar.completed_at,
-           s.name AS system_name
-    FROM assessment_result ar
-    JOIN systems s ON ar.system_id = s.id
-    WHERE ar.user_id = ? AND ar.system_id = ?
-  `;
+  SELECT ar.id, ar.system_id, ar.score, ar.feedback_status, ar.grade, ar.completed_at,
+         s.name AS system_name
+  FROM assessment_result ar
+  JOIN systems s ON ar.system_id = s.id
+  WHERE ar.user_id = ? AND ar.system_id = ?
+  ORDER BY ar.completed_at DESC
+  LIMIT 1
+`;
   const values = [userId, systemId];
 
   try {
@@ -144,6 +146,7 @@ const getAssessmentResults = async (req, res) => {
     });
   }
 };
+
 const getAssessmentStatuses = async (req, res) => {
   try {
     const query = `

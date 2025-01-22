@@ -58,41 +58,35 @@ const loginSuperUser = async (req, res) => {
 const matchExpertsToSystem = async (req, res) => {
   const { systemId, expertIds } = req.body;
 
-  console.log("📩 [REQUEST BODY]:", { systemId, expertIds });
-
-  if (
-    !systemId ||
-    !expertIds ||
-    !Array.isArray(expertIds) ||
-    expertIds.length === 0
-  ) {
+  if (!systemId || !Array.isArray(expertIds) || expertIds.length === 0) {
     return res.status(400).json({
       resultCode: "F-1",
-      msg: "시스템 ID와 전문가 ID 리스트를 제공해야 합니다.",
+      msg: "시스템 ID와 전문가 ID 목록을 제공해야 합니다.",
     });
   }
 
   try {
-    // 시스템 ID 유효성 검사
-    const [systemCheck] = await pool.query(
-      `SELECT id FROM systems WHERE id = ?`,
-      [systemId]
-    );
-    console.log("🔍 [SYSTEM CHECK]:", systemCheck);
+    // 기존 매칭 데이터 삭제
+    await pool.query("DELETE FROM assignment WHERE systems_id = ?", [systemId]);
 
-    if (systemCheck.length === 0) {
-      return res.status(400).json({
-        resultCode: "F-1",
-        msg: "유효하지 않은 시스템 ID입니다.",
-      });
-    }
+    // INSERT 쿼리
+    const values = expertIds.map((expertId) => [expertId, systemId, false]); // feedback_status 기본값 false 추가
+    const query = `
+      INSERT INTO assignment (expert_id, systems_id, feedback_status) 
+      VALUES ?
+    `;
 
-    // 기타 로직...
+    await pool.query(query, [values]);
+
+    res.status(200).json({
+      resultCode: "S-1",
+      msg: "매칭이 성공적으로 완료되었습니다.",
+    });
   } catch (error) {
-    console.error("❌ [ERROR]:", error);
+    console.error("❌ [MATCH EXPERTS TO SYSTEM] 매칭 실패:", error.message);
     res.status(500).json({
       resultCode: "F-1",
-      msg: "서버 에러 발생",
+      msg: "매칭 중 오류가 발생했습니다.",
       error: error.message,
     });
   }
@@ -104,7 +98,9 @@ const matchExpertsToSystem = async (req, res) => {
 const getMatchedExperts = async (req, res) => {
   const { systemId } = req.query;
 
+  // 시스템 ID 확인
   if (!systemId) {
+    console.error("❌ [GET MATCHED EXPERTS] systemId가 제공되지 않았습니다.");
     return res.status(400).json({
       resultCode: "F-1",
       msg: "시스템 ID를 제공해야 합니다.",
@@ -112,15 +108,37 @@ const getMatchedExperts = async (req, res) => {
   }
 
   try {
+    console.log("✅ [GET MATCHED EXPERTS] 전달된 systemId:", systemId);
+
     const query = `
-      SELECT e.id AS expert_id, e.name AS expert_name, e.institution_name, e.email
+      SELECT 
+        e.id AS expert_id, 
+        e.name AS expert_name, 
+        e.institution_name, 
+        e.email
       FROM assignment a
       JOIN expert e ON a.expert_id = e.id
       WHERE a.systems_id = ?;
     `;
 
+    // SQL 쿼리 실행
+    console.log("📋 [QUERY] 실행 SQL:", query, [systemId]);
     const [rows] = await pool.query(query, [systemId]);
 
+    // 결과 확인
+    if (rows.length === 0) {
+      console.warn(
+        "⚠️ [GET MATCHED EXPERTS] 매칭된 전문가가 없습니다:",
+        systemId
+      );
+      return res.status(200).json({
+        resultCode: "S-1",
+        msg: "매칭된 전문가가 없습니다.",
+        data: [],
+      });
+    }
+
+    console.log("✅ [GET MATCHED EXPERTS] 조회 성공:", rows);
     res.status(200).json({
       resultCode: "S-1",
       msg: "시스템에 매칭된 전문가 조회 성공",
@@ -135,7 +153,6 @@ const getMatchedExperts = async (req, res) => {
     });
   }
 };
-
 /**
  * 🔹 모든 시스템 조회 (슈퍼유저 전용)
  */

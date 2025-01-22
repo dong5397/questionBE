@@ -29,9 +29,10 @@ import {
 import {
   getAssignedSystems,
   getSystemAssessmentResult,
-  addFeedback,
-  updateFeedback,
+  updateQualitativeFeedback,
+  updateQuantitativeFeedback,
   SystemsResult,
+  updateFeedbackStatus,
 } from "./routes/feedback.js";
 import {
   loginSuperUser,
@@ -136,9 +137,24 @@ app.get("/assessment/status", requireAuth, getAssessmentStatuses);
 // 전문가 회원 관련 라우트
 app.get("/assigned-systems", requireAuth, getAssignedSystems);
 app.get("/system-result", requireAuth, getSystemAssessmentResult);
-app.post("/add-feedback", requireAuth, addFeedback);
-app.put("/update-feedback", requireAuth, updateFeedback);
 app.get("/systems-results", requireAuth, SystemsResult);
+
+//피드백
+app.post(
+  "/selftest/quantitative/feedback",
+  requireAuth,
+  updateQuantitativeFeedback
+);
+app.post(
+  "/selftest/qualitative/feedback",
+  requireAuth,
+  updateQualitativeFeedback
+);
+app.post(
+  "/selftest/qualitative/update-status",
+  requireAuth,
+  updateFeedbackStatus
+);
 
 // 에러 처리 미들웨어
 app.use((err, req, res, next) => {
