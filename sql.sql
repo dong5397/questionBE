@@ -82,7 +82,8 @@ CREATE TABLE systems (
     `assignment_id` INT DEFAULT NULL COMMENT '담당 ID',
     FOREIGN KEY (`user_id`) REFERENCES User(`id`) ON DELETE CASCADE
 );
-
+SELECT * FROM systems ;
+DELETE FROM systems WHERE name="test";
 SELECT * FROM systems;
 -- 자가진단 입력 테이블
 CREATE TABLE self_assessment (
@@ -103,7 +104,8 @@ CREATE TABLE self_assessment (
 );
 ALTER TABLE self_assessment ADD COLUMN homepage_privacy VARCHAR(255) DEFAULT '없음';
 
-SELECT * FROM ASSIGNMENT;
+SELECT * FROM assignment;
+
 -- 전문가회원 - 시스템 (N:M) 담당 테이블
 CREATE TABLE assignment (	
     `id` INT NOT NULL AUTO_INCREMENT COMMENT '담당 ID',
@@ -120,20 +122,24 @@ CREATE TABLE assignment (
 SELECT * FROM assignment;
 -- 정량 문항 테이블
 CREATE TABLE quantitative (
-    `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '문항 ID', -- 문항 ID
-    `question_number` INT NOT NULL COMMENT '지표 번호', -- 지표 번호
-    `unit` VARCHAR(50) DEFAULT NULL COMMENT '단위', -- 단위 추가
-    `question` TEXT NOT NULL COMMENT '지표', -- 지표
-    `legal_basis` TEXT DEFAULT NULL COMMENT '근거법령', -- 근거법령
-    `evaluation_criteria` TEXT DEFAULT NULL COMMENT '평가기준 (작은 사항)', -- 평가기준 (작은 사항)
-    `reference_info` TEXT DEFAULT NULL COMMENT '참고사항', -- 참고사항
-    `response` ENUM('이행', '미이행', '해당없음', '자문 필요') DEFAULT NULL COMMENT '평가', -- 평가 상태
-    `additional_comment` TEXT DEFAULT NULL COMMENT '자문 필요 사항', -- 자문 필요 사항
-    `file_upload` VARCHAR(255) DEFAULT NULL COMMENT '파일 경로', -- 파일 업로드 경로
-    `system_id` INT NOT NULL COMMENT '시스템 ID', -- 시스템 ID
-    FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE, -- 외래 키 설정
-    UNIQUE KEY unique_question (question_number, system_id) -- 고유 키 설정
+    `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '문항 ID',
+    `question_number` INT NOT NULL COMMENT '지표 번호',
+    `unit` VARCHAR(50) DEFAULT NULL COMMENT '단위',
+    `evaluation_method` ENUM('정량평가', '배점') DEFAULT '정량평가' COMMENT '평가방법',
+    `score` DECIMAL(5,2) DEFAULT NULL COMMENT '배점',
+    `question` TEXT NOT NULL COMMENT '지표',
+    `legal_basis` TEXT DEFAULT NULL COMMENT '근거법령',
+    `criteria_and_references` TEXT DEFAULT NULL COMMENT '평가기준, 참고사항, 증빙자료 및 예시',
+    `file_upload` VARCHAR(255) DEFAULT NULL COMMENT '파일 경로',
+    `response` ENUM('이행', '미이행', '해당없음', '자문 필요') DEFAULT NULL COMMENT '평가 상태',
+    `additional_comment` TEXT DEFAULT NULL COMMENT '자문 필요 사항',
+    `feedback` TEXT DEFAULT NULL COMMENT '피드백',
+    `system_id` INT NOT NULL COMMENT '시스템 ID',
+    FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE,
+    UNIQUE KEY unique_question (question_number, system_id)
 );
+ALTER TABLE quantitative
+MODIFY feedback TEXT DEFAULT '피드백 없음';
 
 ALTER TABLE quantitative MODIFY question TEXT NULL;
 
@@ -143,33 +149,27 @@ SELECT * FROM quantitative;
 
 CREATE TABLE qualitative (
     `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '문항 ID',
-    `question_number` INT NULL COMMENT '문항 번호',
-    `indicator` TEXT COMMENT '지표',
-    `indicator_definition` TEXT COMMENT '지표 정의',
-    `evaluation_criteria` TEXT COMMENT '평가기준 (착안사항)',
-    `reference_info` TEXT COMMENT '참고사항',
-    `file_path` VARCHAR(255) COMMENT '파일 업로드 경로',
+    `question_number` INT NULL COMMENT '지표 번호',
+    `indicator` TEXT NOT NULL COMMENT '지표',
+    `indicator_definition` TEXT DEFAULT NULL COMMENT '지표 정의',
+    `evaluation_criteria` TEXT DEFAULT NULL COMMENT '평가기준 (착안사항)',
+    `reference_info` TEXT DEFAULT NULL COMMENT '참고사항',
+    `file_path` VARCHAR(255) DEFAULT NULL COMMENT '파일 업로드 경로',
     `response` ENUM('자문필요', '해당없음') DEFAULT NULL COMMENT '응답 상태',
-    `additional_comment` TEXT COMMENT '추가 의견',
-    `system_id` INT NULL COMMENT '시스템 ID',
-    `user_id` INT NOT NULL COMMENT '사용자 ID', -- 사용자 ID 열 추가
+    `additional_comment` TEXT DEFAULT NULL COMMENT '추가 의견',
+    `system_id` INT NOT NULL COMMENT '시스템 ID',
+    `user_id` INT NOT NULL COMMENT '사용자 ID',
     FOREIGN KEY (`system_id`) REFERENCES systems(`id`) ON DELETE CASCADE,
     UNIQUE KEY unique_question (question_number, system_id)
 );
+ALTER TABLE qualitative
+ADD COLUMN feedback TEXT DEFAULT NULL COMMENT '피드백';
 
 SELECT * FROM systems;
 
 
--- 피드백 테이블
-CREATE TABLE feedback (
-    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '피드백 ID',
-    assessment_result_id INT NOT NULL COMMENT '자가진단 결과 ID',
-    assignment_id INT NOT NULL COMMENT '담당 시스템 ID',
-    feedback_content TEXT NOT NULL COMMENT '피드백 내용',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '피드백 생성 날짜',
-    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- 자가진단 결과 연결
-    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- 담당 시스템 연결
-);
+
+
 
 SELECT * FROM assessment_result;
 -- 자가진단 결과 테이블
@@ -187,4 +187,13 @@ CREATE TABLE assessment_result (
     FOREIGN KEY (`assessment_id`) REFERENCES self_assessment(`id`) ON DELETE CASCADE -- 자가진단 입력 연결
 );
 
-select * from assessment_result
+-- 피드백 테이블
+CREATE TABLE feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '피드백 ID',
+    assessment_result_id INT NOT NULL COMMENT '자가진단 결과 ID',
+    assignment_id INT NOT NULL COMMENT '담당 시스템 ID',
+    feedback_content TEXT NOT NULL COMMENT '피드백 내용',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '피드백 생성 날짜',
+    FOREIGN KEY (assessment_result_id) REFERENCES assessment_result(id) ON DELETE CASCADE, -- 자가진단 결과 연결
+    FOREIGN KEY (assignment_id) REFERENCES assignment(id) ON DELETE CASCADE -- 담당 시스템 연결
+);
