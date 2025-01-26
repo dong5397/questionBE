@@ -187,6 +187,7 @@ const deleteSystem = async (req, res) => {
     res.status(500).json({ message: "시스템 삭제 중 오류가 발생했습니다." });
   }
 };
+
 const getAllSystems = async (req, res) => {
   try {
     const [systems] = await pool.query(

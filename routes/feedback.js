@@ -149,6 +149,7 @@ const SystemsResult = async (req, res) => {
     });
   }
 };
+
 const updateQuantitativeFeedback = async (req, res) => {
   const { systemId, feedbackResponses } = req.body;
 
@@ -163,40 +164,71 @@ const updateQuantitativeFeedback = async (req, res) => {
   console.log("Received systemId:", systemId);
   console.log("Received feedbackResponses:", feedbackResponses);
 
+  const connection = await pool.getConnection();
+
   try {
     const query = `
-      INSERT INTO quantitative (
-        question_number, system_id, feedback
-      )
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE feedback = VALUES(feedback);
+      UPDATE quantitative
+      SET feedback = ?
+      WHERE question_number = ? AND system_id = ?
     `;
 
-    const connection = await pool.getConnection();
     await connection.beginTransaction();
 
+    // Update quantitative feedback
     for (const { questionNumber, feedback } of feedbackResponses) {
+      if (typeof questionNumber !== "number" || typeof feedback !== "string") {
+        console.error("Invalid feedback response:", {
+          questionNumber,
+          feedback,
+        });
+        throw new Error("피드백 데이터 형식이 잘못되었습니다.");
+      }
+
       await connection.query(query, [
+        feedback || "피드백 없음", // 기본값 설정
         questionNumber,
         systemId,
-        feedback || "피드백 없음", // 기본값 설정
       ]);
     }
 
+    console.log("Feedbacks updated successfully for system_id:", systemId);
+
+    // ✅ Update feedback status in `assessment_result`
+    const updateStatusQuery = `
+      UPDATE assessment_result
+      SET feedback_status = '전문가 자문이 반영되었습니다'
+      WHERE system_id = ?
+    `;
+
+    const [updateResult] = await connection.query(updateStatusQuery, [
+      systemId,
+    ]);
+
+    console.log(
+      "Feedback status updated:",
+      updateResult.affectedRows,
+      "rows affected"
+    );
+
+    // Commit transaction
     await connection.commit();
-    connection.release();
+    console.log("Transaction committed successfully");
 
     res.status(200).json({
       resultCode: "S-1",
-      msg: "정량 피드백 업데이트 성공",
+      msg: "정량 피드백 및 상태 업데이트 성공",
     });
   } catch (error) {
+    await connection.rollback();
     console.error("Error updating feedback:", error.message);
     res.status(500).json({
       resultCode: "F-1",
       msg: "서버 오류 발생",
       error: error.message,
     });
+  } finally {
+    connection.release();
   }
 };
 

@@ -140,26 +140,18 @@ const handleQuantitativeSave = async (req, res) => {
   }
 };
 
-// 정성 데이터 저장
 const handleQualitativeSave = async (req, res) => {
-  const {
-    questionNumber,
-    response,
-    additionalComment,
-    systemId,
-    userId,
-    indicator,
-    indicatorDefinition,
-    evaluationCriteria,
-    referenceInfo,
-    filePath,
-  } = req.body;
+  const { qualitativeResponses } = req.body;
 
-  if (!questionNumber || !response || !systemId || !userId) {
-    return res.status(400).json({ message: "필수 필드가 누락되었습니다." });
+  // 데이터 유효성 검사
+  if (!qualitativeResponses || !Array.isArray(qualitativeResponses)) {
+    return res
+      .status(400)
+      .json({ message: "Invalid qualitative responses format." });
   }
 
   try {
+    // SQL 쿼리 정의
     const query = `
       INSERT INTO qualitative (
         question_number, response, additional_comment, system_id, user_id, 
@@ -175,21 +167,41 @@ const handleQualitativeSave = async (req, res) => {
         file_path = VALUES(file_path)
     `;
 
-    await pool.query(query, [
+    // 반복적으로 데이터베이스 작업 수행
+    for (const {
       questionNumber,
       response,
-      additionalComment || "",
+      additionalComment,
       systemId,
       userId,
-      indicator || "",
-      indicatorDefinition || "",
-      evaluationCriteria || "",
-      referenceInfo || "",
-      filePath || null,
-    ]);
-    res.status(200).json({ message: "Response saved successfully." });
+      indicator,
+      indicatorDefinition,
+      evaluationCriteria,
+      referenceInfo,
+      filePath,
+    } of qualitativeResponses) {
+      // 데이터 삽입/업데이트
+      await pool.query(query, [
+        questionNumber,
+        response,
+        additionalComment || "", // 기본값: 빈 문자열
+        systemId,
+        userId,
+        indicator || "", // 기본값: 빈 문자열
+        indicatorDefinition || "", // 기본값: 빈 문자열
+        evaluationCriteria || "", // 기본값: 빈 문자열
+        referenceInfo || "", // 기본값: 빈 문자열
+        filePath || null, // 기본값: null
+      ]);
+    }
+
+    // 성공 응답
+    res
+      .status(200)
+      .json({ message: "All qualitative responses saved successfully." });
   } catch (error) {
-    console.error("Error saving qualitative response:", error.message);
+    // 에러 처리
+    console.error("Error saving qualitative responses:", error.message);
     res
       .status(500)
       .json({ message: "Internal server error.", error: error.message });
