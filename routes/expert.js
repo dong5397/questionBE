@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import pool from "../db/connection.js"; // DB 연결
+import session from "express-session";
 
 const router = express.Router();
 

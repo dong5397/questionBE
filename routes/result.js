@@ -4,8 +4,9 @@ import pool from "../db/connection.js";
 const calculateAssessmentScore = async (systemId) => {
   console.log("Calculating score for systemId:", systemId);
 
-  const queryQuantitative = `SELECT response FROM quantitative WHERE system_id = ?`;
-  const queryQualitative = `SELECT response FROM qualitative WHERE system_id = ?`;
+  // ✅ 변경된 테이블 구조 반영
+  const queryQuantitative = `SELECT response FROM quantitative_responses WHERE systems_id = ?`;
+  const queryQualitative = `SELECT response FROM qualitative_responses WHERE systems_id = ?`;
 
   try {
     const [quantitativeResults] = await pool.query(queryQuantitative, [
@@ -18,11 +19,13 @@ const calculateAssessmentScore = async (systemId) => {
 
     let score = 0;
 
+    // ✅ 정량 평가 점수 계산
     quantitativeResults.forEach((item) => {
       if (item.response === "이행") score += 1;
-      else if (item.response === "자문 필요") score += 0.3;
+      else if (item.response === "자문필요") score += 0.3;
     });
 
+    // ✅ 정성 평가 점수 계산
     qualitativeResults.forEach((item) => {
       if (item.response === "자문필요") score += 0.3;
     });
@@ -59,7 +62,7 @@ const completeSelfTest = async (req, res) => {
   try {
     // ✅ 1️⃣ `assessment_id`를 `self_assessment`에서 조회
     const [selfAssessmentResult] = await pool.query(
-      "SELECT id FROM self_assessment WHERE system_id = ? AND user_id = ?",
+      "SELECT id FROM self_assessment WHERE systems_id = ? AND user_id = ?",
       [systemId, userId]
     );
 
@@ -77,12 +80,14 @@ const completeSelfTest = async (req, res) => {
 
     // ✅ 3️⃣ `assessment_id` 포함하여 결과 저장
     const query = `
-      INSERT INTO assessment_result (system_id, user_id, assessment_id, score, feedback_status, grade)
-      VALUES (?, ?, ?, ?, '전문가 자문이 반영되기전입니다', ?)
-      ON DUPLICATE KEY UPDATE
-        score = VALUES(score),
-        grade = VALUES(grade),
-        feedback_status = '전문가 자문이 반영되기전입니다'
+     INSERT INTO assessment_result (systems_id, user_id, assessment_id, score, feedback_status, completed_at, grade)
+     VALUES (?, ?, ?, ?, '전문가 자문이 반영되기전입니다', NOW(), ?)
+     ON DUPLICATE KEY UPDATE
+     score = VALUES(score),
+     feedback_status = VALUES(feedback_status),
+     completed_at = VALUES(completed_at),
+     grade = VALUES(grade);
+
     `;
     const values = [systemId, userId, assessmentId, score, grade];
     console.log("Executing query:", query, "with values:", values);
@@ -116,11 +121,11 @@ const getAssessmentResults = async (req, res) => {
   }
 
   const query = `
-  SELECT ar.id, ar.system_id, ar.score, ar.feedback_status, ar.grade, ar.completed_at,
+  SELECT ar.id, ar.systems_id, ar.score, ar.feedback_status, ar.grade, ar.completed_at,
          s.name AS system_name
   FROM assessment_result ar
-  JOIN systems s ON ar.system_id = s.id
-  WHERE ar.user_id = ? AND ar.system_id = ?
+  JOIN systems s ON ar.systems_id = s.id
+  WHERE ar.user_id = ? AND ar.systems_id = ?
   ORDER BY ar.completed_at DESC
   LIMIT 1
 `;
@@ -150,15 +155,15 @@ const getAssessmentResults = async (req, res) => {
 const getAssessmentStatuses = async (req, res) => {
   try {
     const query = `
-      SELECT system_id, COUNT(*) > 0 AS is_completed
+      SELECT systems_id, COUNT(*) > 0 AS is_completed
       FROM assessment_result
-      GROUP BY system_id
+      GROUP BY systems_id
     `;
     const [results] = await pool.query(query);
 
     // 결과를 객체 형태로 변환
     const statusMap = results.reduce((acc, row) => {
-      acc[row.system_id] = row.is_completed;
+      acc[row.systems_id] = row.is_completed;
       return acc;
     }, {});
 

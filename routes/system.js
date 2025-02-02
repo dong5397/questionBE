@@ -82,7 +82,7 @@ const getsystems = async (req, res) => {
 
     const [systems] = await pool.query(
       `SELECT 
-          systems.id AS system_id,
+          systems.id AS systems_id,
           systems.name AS system_name,
           systems.purpose,
           systems.assessment_status,
@@ -113,7 +113,7 @@ const getSystemById = async (req, res) => {
   try {
     const [system] = await pool.query(
       `SELECT 
-          systems.id AS system_id,
+          systems.id AS systems_id,
           systems.name AS system_name,
           systems.purpose,
           systems.min_subjects,
@@ -187,12 +187,11 @@ const deleteSystem = async (req, res) => {
     res.status(500).json({ message: "시스템 삭제 중 오류가 발생했습니다." });
   }
 };
-
 const getAllSystems = async (req, res) => {
   try {
     const [systems] = await pool.query(
       `SELECT 
-          systems.id AS system_id,
+          systems.id AS systems_id,
           systems.name AS system_name,
           systems.purpose,
           systems.min_subjects,

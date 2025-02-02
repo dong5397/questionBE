@@ -66,21 +66,41 @@ const matchExpertsToSystem = async (req, res) => {
   }
 
   try {
-    // 기존 매칭 데이터 삭제
-    await pool.query("DELETE FROM assignment WHERE systems_id = ?", [systemId]);
+    // ✅ 기존에 배정된 전문가 조회 (중복 체크용)
+    const checkQuery = `
+      SELECT expert_id FROM assignment WHERE systems_id = ?;
+    `;
+    const [existingAssignments] = await pool.query(checkQuery, [systemId]);
 
-    // INSERT 쿼리
-    const values = expertIds.map((expertId) => [expertId, systemId, false]); // feedback_status 기본값 false 추가
-    const query = `
+    // 기존에 배정된 전문가 ID 목록
+    const existingExpertIds = new Set(
+      existingAssignments.map((row) => row.expert_id)
+    );
+
+    // ✅ 새로 추가할 전문가만 필터링 (중복 제거)
+    const newExpertIds = expertIds.filter(
+      (expertId) => !existingExpertIds.has(expertId)
+    );
+
+    if (newExpertIds.length === 0) {
+      return res.status(409).json({
+        resultCode: "F-2",
+        msg: "모든 전문가가 이미 배정되어 있습니다.",
+      });
+    }
+
+    // ✅ 중복되지 않은 전문가만 새로 추가
+    const values = newExpertIds.map((expertId) => [expertId, systemId, false]);
+    const insertQuery = `
       INSERT INTO assignment (expert_id, systems_id, feedback_status) 
-      VALUES ?
+      VALUES ?;
     `;
 
-    await pool.query(query, [values]);
+    await pool.query(insertQuery, [values]);
 
     res.status(200).json({
       resultCode: "S-1",
-      msg: "매칭이 성공적으로 완료되었습니다.",
+      msg: "새로운 전문가 매칭이 성공적으로 완료되었습니다.",
     });
   } catch (error) {
     console.error("❌ [MATCH EXPERTS TO SYSTEM] 매칭 실패:", error.message);
@@ -159,7 +179,7 @@ const getMatchedExperts = async (req, res) => {
 const getAllSystems = async (req, res) => {
   try {
     const query = `
-      SELECT s.id AS system_id, s.name AS system_name, u.institution_name, u.email AS user_email
+      SELECT s.id AS systems_id, s.name AS system_name, u.institution_name, u.email AS user_email
       FROM systems s
       JOIN User u ON s.user_id = u.id;
     `;
