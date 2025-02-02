@@ -283,8 +283,6 @@ const getQuantitativeResponses = async (req, res) => {
   }
 };
 
-// 정성 응답 조회
-// 정성 응답 조회
 const getQualitativeResponses = async (req, res) => {
   const { systemId, userId } = req.query;
 
