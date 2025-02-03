@@ -168,14 +168,34 @@ const updateSystem = async (req, res) => {
 
 // 시스템 삭제
 const deleteSystem = async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // 시스템 ID를 URL에서 가져오기
+  const userId = req.session.user?.id;
+  const isSuperUser = req.session.superuser ? true : false; // 슈퍼유저 여부 확인
+
+  if (!userId && !isSuperUser) {
+    return res.status(401).json({ message: "로그인이 필요합니다." });
+  }
 
   try {
-    const [result] = await pool.query(
-      `DELETE FROM systems
-       WHERE id = ?`,
+    // 🔹 시스템이 해당 사용자(userId) 또는 슈퍼유저(isSuperUser)인지 확인
+    const [system] = await pool.query(
+      `SELECT user_id FROM systems WHERE id = ?`,
       [id]
     );
+
+    if (!system.length) {
+      return res.status(404).json({ message: "시스템을 찾을 수 없습니다." });
+    }
+
+    // 🔹 일반 유저는 자신이 등록한 시스템만 삭제 가능
+    if (!isSuperUser && system[0].user_id !== userId) {
+      return res
+        .status(403)
+        .json({ message: "시스템을 삭제할 권한이 없습니다." });
+    }
+
+    // 🔹 삭제 수행
+    const [result] = await pool.query(`DELETE FROM systems WHERE id = ?`, [id]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "시스템을 찾을 수 없습니다." });
@@ -187,6 +207,7 @@ const deleteSystem = async (req, res) => {
     res.status(500).json({ message: "시스템 삭제 중 오류가 발생했습니다." });
   }
 };
+
 const getAllSystems = async (req, res) => {
   try {
     const [systems] = await pool.query(

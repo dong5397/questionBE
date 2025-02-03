@@ -214,16 +214,22 @@ const submitQualitativeResponses = async (req, res) => {
       filePath,
     } of responses) {
       // 🚨 response 값이 ENUM에 맞게 변환 필요
-      const normalizedResponse = response.replace(/\s+/g, ""); // 모든 공백 제거
+      const normalizedResponse = response.trim().replace(/\s+/g, ""); // 공백 제거
       if (!["자문필요", "해당없음"].includes(normalizedResponse)) {
-        console.error(`❌ [ERROR] Invalid response value: ${response}`);
-        throw new Error(`Invalid response value: ${response}`);
+        console.error(
+          `❌ [ERROR] Invalid response value: '${response}' (normalized: '${normalizedResponse}')`
+        );
+        throw new Error(`Invalid response value: '${response}'`);
       }
 
       const safeAdditionalComment =
         normalizedResponse === "자문필요"
           ? additionalComment?.trim() || "자문요청"
           : null;
+
+      console.log(
+        `🟢 [DEBUG] 저장 시도 → systemId: ${systemId}, userId: ${user_id}, questionId: ${questionId}, response: '${normalizedResponse}', additionalComment: '${safeAdditionalComment}', filePath: ${filePath}`
+      );
 
       await connection.query(query, [
         systemId,
@@ -233,11 +239,12 @@ const submitQualitativeResponses = async (req, res) => {
         safeAdditionalComment,
         filePath || null,
       ]);
+
+      console.log("✅ [SUCCESS] 정성 응답 저장 완료:", questionId);
     }
 
     await connection.commit();
-    connection.release();
-
+    console.log("✅ [SUCCESS] 정성 응답 저장 완료");
     res.status(200).json({ message: "정성 응답 저장 완료" });
   } catch (error) {
     console.error("❌ [ERROR] 정성 응답 저장 실패:", error.message);

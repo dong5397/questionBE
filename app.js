@@ -12,7 +12,7 @@ import {
   getExpertInfo,
   getAllExperts,
 } from "./routes/expert.js";
-import { postsystem, getsystems } from "./routes/system.js";
+import { postsystem, getsystems, deleteSystem } from "./routes/system.js";
 import { sendVerificationCode, verifyCode } from "./routes/email.js";
 import {
   handleSelfAssessmentSave,
@@ -124,6 +124,7 @@ app.post("/email/verify-code", verifyCode);
 app.post("/systems", requireAuth, postsystem);
 app.get("/systems", requireAuth, getsystems);
 app.get("/all-systems", requireSuperUser, getAllSystems);
+app.delete("/system/:id", requireAuth, deleteSystem);
 
 // ✅ 자가진단(자가평가) 라우트
 app.post("/selftest/quantitative", requireAuth, submitQuantitativeResponses);
