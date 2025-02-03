@@ -81,12 +81,16 @@ app.use(
 
 // ✅ 인증 미들웨어
 const requireAuth = (req, res, next) => {
-  if (
-    !req.session ||
-    (!req.session.user && !req.session.expert && !req.session.superuser)
-  ) {
+  console.log("🔍 [DEBUG] req.session:", req.session); // 세션 정보 확인
+
+  if (!req.session?.user) {
     return res.status(401).json({ message: "로그인이 필요합니다." });
   }
+
+  // ✅ req.user에 user 정보 저장
+  req.user = req.session.user;
+  console.log("✅ [DEBUG] req.user 설정 완료:", req.user);
+
   next();
 };
 
