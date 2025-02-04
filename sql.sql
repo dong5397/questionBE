@@ -5,7 +5,7 @@ USE test;
 
 -- 데이터베이스 설정
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
+SHOW tables;
 -- 회원 테이블
 CREATE TABLE `User` (
     id INT AUTO_INCREMENT PRIMARY KEY, 
@@ -151,6 +151,12 @@ ADD CONSTRAINT fk_assignment_expert
 ADD CONSTRAINT fk_assignment_systems 
     FOREIGN KEY (systems_id) REFERENCES systems(id) ON DELETE CASCADE;
 
+ALTER TABLE assignment DROP FOREIGN KEY fk_assignment_systems;
+ALTER TABLE assignment DROP FOREIGN KEY fk_assignment_expert;
+
+ALTER TABLE assignment ADD CONSTRAINT fk_assignment_systems FOREIGN KEY (systems_id) REFERENCES systems(id) ON DELETE CASCADE;
+ALTER TABLE assignment ADD CONSTRAINT fk_assignment_expert FOREIGN KEY (expert_id) REFERENCES expert(id) ON DELETE CASCADE;
+
 -- 정량 문항 테이블
 CREATE TABLE quantitative_questions (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '문항 ID',
@@ -161,6 +167,8 @@ CREATE TABLE quantitative_questions (
     score DECIMAL(5,2) DEFAULT NULL COMMENT '배점',
     UNIQUE KEY uk_question_number (question_number)
 )
+
+
 
 -- 정량 응답 테이블 (quantitative_responses)
 CREATE TABLE quantitative_responses (
@@ -201,6 +209,11 @@ CREATE TABLE qualitative_questions (
     PRIMARY KEY (id),
     UNIQUE KEY uk_question_number (question_number)
 )
+-- 🚀 정성 문항 테이블에 system_id 컬럼 추가
+ALTER TABLE qualitative_questions 
+drop COLUMN system_id ;
+
+
 
 
 -- 정성 응답 테이블 (qualitative_responses)
@@ -228,6 +241,11 @@ CREATE INDEX idx_user_id ON qualitative_responses (user_id);
 CREATE INDEX idx_question_id ON qualitative_responses (question_id);
 CREATE INDEX idx_systems_id ON qualitative_responses (systems_id);
 
+
+
+SHOW CREATE TABLE qualitative_responses;
+ALTER TABLE quantitative_responses DROP FOREIGN KEY quantitative_responses_ibfk_1;
+ALTER TABLE qualitative_responses DROP COLUMN feedback;
 
 
 
@@ -261,6 +279,7 @@ ADD CONSTRAINT fk_assessment_result_user
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
 ADD CONSTRAINT fk_assessment_result_assessment 
     FOREIGN KEY (assessment_id) REFERENCES self_assessment(id) ON DELETE CASCADE;
+   
 
 
 
@@ -355,13 +374,21 @@ VALUES
 
 
 
+
 -- 슈퍼유저 만들기
 INSERT INTO SuperUser (name, email, password, phone_number) 
 VALUES ('김동욱', 'test@test', '5397', '010-1234-5678');
 
+
+
+
+
 UPDATE SuperUser
 SET member_type = 'superuser';
 SELECT * FROM quantitative_responses WHERE systems_id = 6 AND user_id = 1;
+
+
+
 
 
 
