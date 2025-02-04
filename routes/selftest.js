@@ -29,6 +29,20 @@ const handleSelfAssessmentSave = async (req, res) => {
   }
 
   try {
+    // ✅ 시스템 존재 여부 확인
+    const [systemExists] = await pool.query(
+      "SELECT id FROM systems WHERE id = ?",
+      [systemId]
+    );
+
+    console.log("🔍 [DB 조회] 시스템 존재 여부:", systemExists);
+    if (systemExists.length === 0) {
+      return res.status(400).json({
+        message: "유효하지 않은 systemId입니다. 시스템이 존재하지 않습니다.",
+      });
+    }
+
+    // ✅ self_assessment 저장 또는 업데이트
     const query = `
       INSERT INTO self_assessment (
         user_id, systems_id, organization, user_scale, personal_info_system,
@@ -62,7 +76,7 @@ const handleSelfAssessmentSave = async (req, res) => {
     await pool.query(query, values);
     res.status(201).json({ message: "Self-assessment saved successfully." });
   } catch (err) {
-    console.error("Self-assessment 저장 실패:", err.message);
+    console.error("❌ Self-assessment 저장 실패:", err);
     res
       .status(500)
       .json({ message: "Internal server error.", error: err.message });

@@ -45,6 +45,13 @@ import {
   matchExpertsToSystem,
   getMatchedExperts,
   getAllSystems,
+  logoutSuperUser,
+  deleteSystemBySuperUser,
+  SupergetQuantitativeQuestions,
+  SupergetQualitativeQuestions,
+  SupergetQuantitativeResponses,
+  SupergetQualitativeResponses,
+  getSystemById,
 } from "./routes/superuser.js";
 
 dotenv.config();
@@ -81,16 +88,12 @@ app.use(
 
 // ✅ 인증 미들웨어
 const requireAuth = (req, res, next) => {
-  console.log("🔍 [DEBUG] req.session:", req.session); // 세션 정보 확인
-
-  if (!req.session?.user) {
+  if (
+    !req.session ||
+    (!req.session.user && !req.session.expert && !req.session.superuser)
+  ) {
     return res.status(401).json({ message: "로그인이 필요합니다." });
   }
-
-  // ✅ req.user에 user 정보 저장
-  req.user = req.session.user;
-  console.log("✅ [DEBUG] req.user 설정 완료:", req.user);
-
   next();
 };
 
@@ -119,6 +122,29 @@ app.get("/all-expert", requireAuth, getAllExperts);
 app.post("/login/superuser", loginSuperUser);
 app.post("/match-experts", requireSuperUser, matchExpertsToSystem);
 app.get("/matched-experts", requireSuperUser, getMatchedExperts);
+app.post("/logout/SuperUser", requireSuperUser, logoutSuperUser);
+app.delete("/system/superuser/:id", requireSuperUser, deleteSystemBySuperUser);
+app.get("/system/:id", requireSuperUser, getSystemById);
+app.get(
+  "/super/selftest/quantitative/systemId/:id",
+  requireSuperUser,
+  SupergetQuantitativeQuestions
+);
+app.get(
+  "/super/selftest/qualitative/systemId/:id",
+  requireSuperUser,
+  SupergetQualitativeQuestions
+);
+app.get(
+  "/super/selftest/quantitative/responses/systemId/:id",
+  requireSuperUser,
+  SupergetQuantitativeResponses
+);
+app.get(
+  "/super/selftest/qualitative/responses/systemId/:id",
+  requireSuperUser,
+  SupergetQualitativeResponses
+);
 
 // ✅ 이메일 인증 라우트
 app.post("/email/send-verification-code", sendVerificationCode);
