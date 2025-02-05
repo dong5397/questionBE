@@ -97,20 +97,25 @@ const submitQuantitativeResponses = async (req, res) => {
     return res.status(400).json({ message: "Invalid responses format." });
   }
 
+  let connection;
+
   try {
     console.log("📡 [DEBUG] 수신된 정량 응답 데이터:", responses);
 
-    const query = `
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const insertQuery = `
       INSERT INTO quantitative_responses (systems_id, user_id, question_id, response, additional_comment, file_path)
       VALUES (?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE 
         response = VALUES(response), 
         additional_comment = VALUES(additional_comment), 
-        file_path = VALUES(file_path);
+        file_path = VALUES(file_path),
+        updated_at = CURRENT_TIMESTAMP;
     `;
 
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
+    const checkQuestionQuery = `SELECT COUNT(*) AS count FROM quantitative_questions WHERE id = ?`;
 
     for (const {
       systemId,
@@ -119,19 +124,54 @@ const submitQuantitativeResponses = async (req, res) => {
       additionalComment,
       filePath,
     } of responses) {
-      // 🚀 `response`를 확인
+      // 🚨 `questionId`가 0이거나 잘못된 경우 에러 처리
+      if (!questionId || questionId <= 0) {
+        console.error(`❌ [ERROR] Invalid questionId received: ${questionId}`);
+        return res
+          .status(400)
+          .json({ message: `Invalid questionId: ${questionId}` });
+      }
+
+      if (!systemId) {
+        console.error(`❌ [ERROR] Invalid systemId received: ${systemId}`);
+        return res
+          .status(400)
+          .json({ message: `Invalid systemId: ${systemId}` });
+      }
+
+      // 🔍 `questionId`가 `quantitative_questions` 테이블에 존재하는지 확인
+      const [questionExists] = await connection.query(checkQuestionQuery, [
+        questionId,
+      ]);
+      if (questionExists[0].count === 0) {
+        console.error(
+          `❌ [ERROR] Question not found for questionId: ${questionId}`
+        );
+        return res
+          .status(400)
+          .json({
+            message: `Question not found for questionId: ${questionId}`,
+          });
+      }
+
+      // 🚀 `response` 값이 ENUM 값과 일치하는지 확인
+      const validResponses = ["이행", "미이행", "해당없음", "자문필요"];
       const normalizedResponse =
-        response && response.trim() ? response.trim() : "이행";
+        response && validResponses.includes(response.trim())
+          ? response.trim()
+          : "이행";
+
+      // ✅ `additionalComment`는 `자문필요`일 때만 저장, 그 외에는 `NULL`
       const safeAdditionalComment =
         normalizedResponse === "자문필요"
           ? additionalComment?.trim() || "자문 요청"
-          : "";
+          : null;
 
       console.log(
         `📡 [DEBUG] 저장할 데이터 → systemId: ${systemId}, userId: ${user_id}, questionId: ${questionId}, response: ${normalizedResponse}, additionalComment: ${safeAdditionalComment}, filePath: ${filePath}`
       );
 
-      await connection.query(query, [
+      await connection.query(insertQuery, [
         systemId,
         user_id,
         questionId,
@@ -142,12 +182,15 @@ const submitQuantitativeResponses = async (req, res) => {
     }
 
     await connection.commit();
-    connection.release();
+    console.log("✅ [SUCCESS] 모든 정량 응답 저장 완료");
 
     res.status(200).json({ message: "정량 응답 저장 완료" });
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error("❌ [ERROR] 정량 응답 저장 실패:", error.message);
     res.status(500).json({ message: "서버 오류 발생", error: error.message });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -188,7 +231,6 @@ const getQualitativeQuestions = async (req, res) => {
   }
 };
 
-// 정성 데이터 저장
 const submitQualitativeResponses = async (req, res) => {
   const { responses } = req.body;
   const user_id = req.session.user?.id;
@@ -204,19 +246,6 @@ const submitQualitativeResponses = async (req, res) => {
   try {
     console.log("📡 [DEBUG] Received qualitative responses:", responses);
 
-    const query = `
-      INSERT INTO qualitative_responses 
-      (systems_id, user_id, question_id, response, additional_comment, file_path)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
-        response = VALUES(response), 
-        additional_comment = CASE 
-          WHEN VALUES(response) = '자문필요' THEN VALUES(additional_comment) 
-          ELSE NULL 
-        END,
-        file_path = VALUES(file_path);
-    `;
-
     const connection = await pool.getConnection();
     await connection.beginTransaction();
 
@@ -227,38 +256,42 @@ const submitQualitativeResponses = async (req, res) => {
       additionalComment,
       filePath,
     } of responses) {
-      // 🚨 response 값이 ENUM에 맞게 변환 필요
-      const normalizedResponse = response.trim().replace(/\s+/g, ""); // 공백 제거
-      if (!["자문필요", "해당없음"].includes(normalizedResponse)) {
-        console.error(
-          `❌ [ERROR] Invalid response value: '${response}' (normalized: '${normalizedResponse}')`
-        );
-        throw new Error(`Invalid response value: '${response}'`);
+      const parsedQuestionId = Number(questionId);
+
+      // ✅ [DEBUG] questionId 값 확인
+      if (!parsedQuestionId || parsedQuestionId === 0) {
+        console.error(`❌ [ERROR] Invalid questionId received: ${questionId}`);
+        await connection.release();
+        return res.status(400).json({ message: "Invalid questionId detected" });
       }
 
-      const safeAdditionalComment =
-        normalizedResponse === "자문필요"
-          ? additionalComment?.trim() || "자문요청"
-          : null;
-
       console.log(
-        `🟢 [DEBUG] 저장 시도 → systemId: ${systemId}, userId: ${user_id}, questionId: ${questionId}, response: '${normalizedResponse}', additionalComment: '${safeAdditionalComment}', filePath: ${filePath}`
+        `🟢 [DEBUG] Saving response → questionId: ${parsedQuestionId}, response: ${response}`
       );
 
-      await connection.query(query, [
-        systemId,
-        user_id,
-        questionId,
-        normalizedResponse, // 변환된 값 저장
-        safeAdditionalComment,
-        filePath || null,
-      ]);
+      await connection.query(
+        `INSERT INTO qualitative_responses (systems_id, user_id, question_id, response, additional_comment, file_path)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           response = VALUES(response),
+           additional_comment = CASE WHEN VALUES(response) = '자문필요' THEN VALUES(additional_comment) ELSE NULL END,
+           file_path = VALUES(file_path);`,
+        [
+          systemId,
+          user_id,
+          parsedQuestionId, // ✅ 변환된 값 사용
+          response,
+          additionalComment,
+          filePath || null,
+        ]
+      );
 
-      console.log("✅ [SUCCESS] 정성 응답 저장 완료:", questionId);
+      console.log(
+        `✅ [SUCCESS] Saved qualitative response → questionId: ${parsedQuestionId}`
+      );
     }
 
     await connection.commit();
-    console.log("✅ [SUCCESS] 정성 응답 저장 완료");
     res.status(200).json({ message: "정성 응답 저장 완료" });
   } catch (error) {
     console.error("❌ [ERROR] 정성 응답 저장 실패:", error.message);
