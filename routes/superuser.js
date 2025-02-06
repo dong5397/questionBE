@@ -322,6 +322,198 @@ const getSystemById = async (req, res) => {
     res.status(500).json({ message: "시스템 조회 중 오류가 발생했습니다." });
   }
 };
+
+// POST /superuser/selftest/quantitative
+const addQuantitativeQuestion = async (req, res) => {
+  const { question_number, question, evaluation_criteria, legal_basis, score } =
+    req.body;
+
+  if (!question_number || !question || !evaluation_criteria || !score) {
+    return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO quantitative_questions (question_number, question, evaluation_criteria, legal_basis, score) VALUES (?, ?, ?, ?, ?)",
+      [
+        question_number,
+        question,
+        evaluation_criteria,
+        legal_basis || null,
+        score,
+      ]
+    );
+
+    res
+      .status(201)
+      .json({ message: "문항이 추가되었습니다.", id: result.insertId });
+  } catch (error) {
+    console.error("문항 추가 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
+// PUT /superuser/selftest/quantitative/:id
+const editQuantitativeQuestion = async (req, res) => {
+  const { id } = req.params;
+  const { question_number, question, evaluation_criteria, legal_basis, score } =
+    req.body;
+
+  if (!question_number || !question || !evaluation_criteria || !score) {
+    return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "UPDATE quantitative_questions SET question_number = ?, question = ?, evaluation_criteria = ?, legal_basis = ?, score = ? WHERE id = ?",
+      [
+        question_number,
+        question,
+        evaluation_criteria,
+        legal_basis || null,
+        score,
+        id,
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "문항을 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ message: "문항이 수정되었습니다." });
+  } catch (error) {
+    console.error("문항 수정 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
+// DELETE /superuser/selftest/quantitative/:id
+const deleteQuantitativeQuestion = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      "DELETE FROM quantitative_questions WHERE id = ?",
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "문항을 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ message: "문항이 삭제되었습니다." });
+  } catch (error) {
+    console.error("문항 삭제 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
+// POST /superuser/selftest/qualitative
+const addQualitativeQuestion = async (req, res) => {
+  const {
+    question_number,
+    indicator,
+    indicator_definition,
+    evaluation_criteria,
+    reference_info,
+  } = req.body;
+
+  // 필수 항목 검증
+  if (!question_number || !indicator || !evaluation_criteria) {
+    return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
+  }
+
+  try {
+    // SQL 쿼리로 정성 문항 추가
+    const [result] = await pool.query(
+      "INSERT INTO qualitative_questions (question_number, indicator, indicator_definition, evaluation_criteria, reference_info) VALUES (?, ?, ?, ?, ?)",
+      [
+        question_number,
+        indicator,
+        indicator_definition || null,
+        evaluation_criteria,
+        reference_info || null,
+      ]
+    );
+
+    // 문항 추가 완료
+    res.status(201).json({
+      message: "문항이 추가되었습니다.",
+      id: result.insertId, // 새로 추가된 문항의 ID 반환
+    });
+  } catch (error) {
+    console.error("문항 추가 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
+// PUT /superuser/selftest/qualitative/:id
+const editQualitativeQuestion = async (req, res) => {
+  const { id } = req.params;
+  const {
+    question_number,
+    indicator,
+    indicator_definition,
+    evaluation_criteria,
+    reference_info,
+  } = req.body;
+
+  // 필수 항목 검증
+  if (!question_number || !indicator || !evaluation_criteria) {
+    return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
+  }
+
+  try {
+    // SQL 쿼리로 정성 문항 수정
+    const [result] = await pool.query(
+      "UPDATE qualitative_questions SET question_number = ?, indicator = ?, indicator_definition = ?, evaluation_criteria = ?, reference_info = ? WHERE id = ?",
+      [
+        question_number || null,
+        indicator || null,
+        indicator_definition || null,
+        evaluation_criteria || null,
+        reference_info || null,
+        id,
+      ]
+    );
+
+    // 수정된 문항이 없으면 404 오류
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "문항을 찾을 수 없습니다." });
+    }
+
+    // 문항 수정 완료
+    res.status(200).json({ message: "문항이 수정되었습니다." });
+  } catch (error) {
+    console.error("문항 수정 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
+// DELETE /superuser/selftest/qualitative/:id
+const deleteQualitativeQuestion = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // SQL 쿼리로 정성 문항 삭제
+    const [result] = await pool.query(
+      "DELETE FROM qualitative_questions WHERE id = ?",
+      [id]
+    );
+
+    // 삭제된 문항이 없으면 404 오류
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "문항을 찾을 수 없습니다." });
+    }
+
+    // 문항 삭제 완료
+    res.status(200).json({ message: "문항이 삭제되었습니다." });
+  } catch (error) {
+    console.error("문항 삭제 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+};
+
 export {
   getAllSystems,
   getMatchedExperts,
@@ -334,4 +526,10 @@ export {
   SupergetQualitativeQuestions,
   SupergetQuantitativeResponses,
   SupergetQualitativeResponses,
+  addQuantitativeQuestion,
+  editQuantitativeQuestion,
+  deleteQuantitativeQuestion,
+  addQualitativeQuestion,
+  editQualitativeQuestion,
+  deleteQualitativeQuestion,
 };

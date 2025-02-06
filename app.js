@@ -52,6 +52,12 @@ import {
   SupergetQuantitativeResponses,
   SupergetQualitativeResponses,
   getSystemById,
+  addQuantitativeQuestion,
+  editQuantitativeQuestion,
+  deleteQuantitativeQuestion,
+  addQualitativeQuestion,
+  editQualitativeQuestion,
+  deleteQualitativeQuestion,
 } from "./routes/superuser.js";
 
 dotenv.config();
@@ -145,6 +151,16 @@ app.get(
   requireSuperUser,
   SupergetQualitativeResponses
 );
+
+// 정량 문항 API
+app.post("/selftest/quantitative", addQuantitativeQuestion);
+app.put("/selftest/quantitative/:id", editQuantitativeQuestion);
+app.delete("/selftest/quantitative/:id", deleteQuantitativeQuestion);
+
+// 정성 문항 API
+app.post("/selftest/qualitative", addQualitativeQuestion);
+app.put("/selftest/qualitative/:id", editQualitativeQuestion);
+app.delete("/selftest/qualitative/:id", deleteQualitativeQuestion);
 
 // ✅ 이메일 인증 라우트
 app.post("/email/send-verification-code", sendVerificationCode);
