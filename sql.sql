@@ -247,6 +247,11 @@ SHOW CREATE TABLE qualitative_responses;
 ALTER TABLE quantitative_responses DROP FOREIGN KEY quantitative_responses_ibfk_1;
 ALTER TABLE qualitative_responses DROP COLUMN feedback;
 
+ALTER TABLE qualitative_questions 
+MODIFY COLUMN evaluation_criteria LONGTEXT;
+ALTER TABLE quantitative_questions  
+MODIFY COLUMN evaluation_criteria LONGTEXT;
+
 
 
 -- 자가진단 결과 테이블
@@ -324,7 +329,7 @@ VALUES
 (7, '개인정보 보호 사고 발생 시 대응이 적절한가?', '유출 사고 발생 시 신속한 대응 및 후속 조치 여부', '사고 대응 절차 및 개선 조치', '개인정보 보호법 제35조'),
 (8, '개인정보 보호 관련 법령 개정 사항을 반영하고 있는가?', '최신 법령 개정 사항을 보호 대책에 반영하는지 여부', '법률 개정 반영 여부', '개인정보 보호법 제36조');
 
-DESC assignment;
+
 
 INSERT INTO quantitative_questions (question_number, question, evaluation_criteria, legal_basis, score)
 VALUES 
@@ -382,13 +387,22 @@ VALUES ('김동욱', 'test@test', '5397', '010-1234-5678');
 
 
 
-
+SELECT * FROM systems s ;
 UPDATE SuperUser
 SET member_type = 'superuser';
-SELECT * FROM quantitative_responses WHERE systems_id = 6 AND user_id = 1;
 
+-- 정량 응답 테이블 수정 (NULL 방지)
+ALTER TABLE quantitative_responses 
+MODIFY COLUMN additional_comment TEXT DEFAULT '';
 
+ALTER TABLE quantitative_responses 
+MODIFY COLUMN file_path VARCHAR(255) DEFAULT '';
 
+-- 정성 응답 테이블 수정 (NULL 방지)
+ALTER TABLE qualitative_responses 
+MODIFY COLUMN additional_comment TEXT DEFAULT '';
 
+ALTER TABLE qualitative_responses 
+MODIFY COLUMN file_path VARCHAR(255) DEFAULT '';
 
 
