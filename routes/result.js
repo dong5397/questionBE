@@ -57,42 +57,58 @@ const completeSelfTest = async (req, res) => {
     });
   }
 
-  console.log("completeSelfTest called with:", { systemId, userId });
+  console.log(
+    "🔄 [DEBUG] completeSelfTest 실행 - systemId:",
+    systemId,
+    "userId:",
+    userId
+  );
+
+  let connection;
 
   try {
-    // ✅ 1️⃣ `assessment_id`를 `self_assessment`에서 조회
-    const [selfAssessmentResult] = await pool.query(
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [selfAssessmentResult] = await connection.query(
       "SELECT id FROM self_assessment WHERE systems_id = ? AND user_id = ?",
       [systemId, userId]
     );
 
     if (selfAssessmentResult.length === 0) {
+      await connection.rollback();
+      console.error("⚠️ [WARNING] self_assessment에 데이터 없음:", {
+        systemId,
+        userId,
+      });
       return res.status(404).json({
         message: "자가진단 입력 데이터가 없습니다.",
       });
     }
-    const assessmentId = selfAssessmentResult[0].id; // 조회한 자가진단 입력 ID
-    console.log("✅ Retrieved assessment_id:", assessmentId);
-    // ✅ 2️⃣ 점수 및 등급 계산
+
+    const assessmentId = selfAssessmentResult[0].id;
+    console.log("✅ [DEBUG] Retrieved assessment_id:", assessmentId);
+
     const { score, grade } = await calculateAssessmentScore(systemId);
+    console.log("✅ [DEBUG] 계산된 점수 및 등급:", { score, grade });
 
-    console.log("Calculated score and grade:", { score, grade });
-
-    // ✅ 3️⃣ `assessment_id` 포함하여 결과 저장
     const query = `
-     INSERT INTO assessment_result (systems_id, user_id, assessment_id, score, feedback_status, completed_at, grade)
-     VALUES (?, ?, ?, ?, '전문가 자문이 반영되기전입니다', NOW(), ?)
-     ON DUPLICATE KEY UPDATE
-     score = VALUES(score),
-     feedback_status = VALUES(feedback_status),
-     completed_at = VALUES(completed_at),
-     grade = VALUES(grade);
-
+      INSERT INTO assessment_result (systems_id, user_id, assessment_id, score, feedback_status, completed_at, grade)
+      VALUES (?, ?, ?, ?, '전문가 자문이 반영되기전입니다', NOW(), ?)
+      ON DUPLICATE KEY UPDATE
+      score = VALUES(score),
+      feedback_status = VALUES(feedback_status),
+      completed_at = VALUES(completed_at),
+      grade = VALUES(grade);
     `;
-    const values = [systemId, userId, assessmentId, score, grade];
-    console.log("Executing query:", query, "with values:", values);
 
-    await pool.query(query, values);
+    const values = [systemId, userId, assessmentId, score, grade];
+    console.log("📡 [DEBUG] 실행할 쿼리:", query, "params:", values);
+
+    await connection.query(query, values);
+
+    await connection.commit();
+    console.log("✅ [DEBUG] 자가진단 결과가 성공적으로 저장됨");
 
     res.status(200).json({
       message: "자가진단 결과가 성공적으로 저장되었습니다.",
@@ -100,55 +116,53 @@ const completeSelfTest = async (req, res) => {
       grade,
     });
   } catch (error) {
-    console.error("자가진단 완료 실패:", error.message);
+    if (connection) await connection.rollback();
+    console.error("❌ [ERROR] 자가진단 완료 실패:", error.message);
     res.status(500).json({
       message: "서버 내부 오류 발생",
       error: error.message,
     });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-// 결과 조회 처리
 const getAssessmentResults = async (req, res) => {
-  const { userId, systemId } = req.query;
-
-  console.log("Received query parameters:", { userId, systemId });
-
-  if (!userId || !systemId) {
-    return res.status(400).json({
-      message: "유효하지 않은 요청입니다. userId와 systemId를 확인하세요.",
-    });
-  }
-
-  const query = `
-  SELECT ar.id, ar.systems_id, ar.score, ar.feedback_status, ar.grade, ar.completed_at,
-         s.name AS system_name
-  FROM assessment_result ar
-  JOIN systems s ON ar.systems_id = s.id
-  WHERE ar.user_id = ? AND ar.systems_id = ?
-  ORDER BY ar.completed_at DESC
-  LIMIT 1
-`;
-  const values = [userId, systemId];
-
   try {
-    const [results] = await pool.query(query, values);
+    const { userId, systemId } = req.query;
 
-    console.log("Query results:", results);
+    console.log("📡 [DEBUG] 결과 데이터 요청 수신:", { userId, systemId });
 
-    if (results.length === 0) {
-      return res.status(404).json({
-        message: "결과가 존재하지 않습니다.",
-      });
+    if (!userId || !systemId) {
+      return res.status(400).json({ message: "필수 정보가 누락되었습니다." });
     }
 
+    // 🛑 Debug: 쿼리를 실행하기 전에 MySQL 연결 확인
+    console.log("📡 [DEBUG] MySQL 연결 확인 중...");
+
+    const query = `
+      SELECT * FROM assessment_result
+      WHERE user_id = ? AND systems_id = ?
+      ORDER BY completed_at DESC
+    `;
+
+    console.log("📡 [DEBUG] 실행할 쿼리:", query, "params:", [
+      userId,
+      systemId,
+    ]);
+
+    const [results] = await pool.query(query, [userId, systemId]);
+
+    if (results.length === 0) {
+      console.warn("⚠️ [WARNING] 결과 데이터 없음:", { userId, systemId });
+      return res.status(404).json({ message: "진단 결과가 없습니다." });
+    }
+
+    console.log("✅ [DEBUG] 결과 데이터 반환:", results);
     res.status(200).json(results);
   } catch (error) {
-    console.error("Error fetching assessment results:", error.message);
-    res.status(500).json({
-      message: "서버 내부 오류 발생",
-      error: error.message,
-    });
+    console.error("❌ [ERROR] 결과 데이터 조회 실패:", error);
+    res.status(500).json({ message: "서버 오류 발생", error: error.message });
   }
 };
 

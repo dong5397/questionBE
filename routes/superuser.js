@@ -148,7 +148,7 @@ const deleteSystemBySuperUser = async (req, res) => {
  */
 const SupergetQuantitativeQuestions = async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM QuantitativeQuestions");
+    const [rows] = await pool.query("SELECT * FROM quantitative_questions"); // ✅ 테이블명 수정
     res.status(200).json({
       resultCode: "S-1",
       msg: "정량적 질문 조회 성공",
@@ -169,7 +169,7 @@ const SupergetQuantitativeQuestions = async (req, res) => {
  */
 const SupergetQualitativeQuestions = async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM QualitativeQuestions");
+    const [rows] = await pool.query("SELECT * FROM qualitative_questions"); // ✅ 테이블명 수정
     res.status(200).json({
       resultCode: "S-1",
       msg: "정성적 질문 조회 성공",
@@ -190,7 +190,7 @@ const SupergetQualitativeQuestions = async (req, res) => {
  */
 const SupergetQuantitativeResponses = async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM QuantitativeResponses");
+    const [rows] = await pool.query("SELECT * FROM quantitative_responses");
     res.status(200).json({
       resultCode: "S-1",
       msg: "정량적 응답 조회 성공",
@@ -211,7 +211,7 @@ const SupergetQuantitativeResponses = async (req, res) => {
  */
 const SupergetQualitativeResponses = async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM QualitativeResponses");
+    const [rows] = await pool.query("SELECT * FROM qualitative_responses"); // ✅ 테이블명 수정
     res.status(200).json({
       resultCode: "S-1",
       msg: "정성적 응답 조회 성공",

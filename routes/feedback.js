@@ -67,14 +67,6 @@ const getAssignedSystems = async (req, res) => {
 const submitQuantitativeFeedback = async (req, res) => {
   const { systemId, expertId, feedbackResponses } = req.body;
 
-  console.log(
-    "📡 [피드백 저장 요청] systemId:",
-    systemId,
-    "expertId:",
-    expertId
-  );
-  console.log("📝 [저장할 데이터]:", feedbackResponses);
-
   if (!systemId || !expertId || !Array.isArray(feedbackResponses)) {
     return res.status(400).json({
       resultCode: "F-1",
@@ -82,35 +74,82 @@ const submitQuantitativeFeedback = async (req, res) => {
     });
   }
 
+  const connection = await pool.getConnection();
   try {
-    const connection = await pool.getConnection();
     await connection.beginTransaction();
 
     for (const { questionNumber, feedback } of feedbackResponses) {
-      await connection.query(
-        `INSERT INTO feedback (systems_id, user_id, expert_id, quantitative_response_id, feedback, created_at)
-         VALUES (?, ?, ?, 
-           (SELECT id FROM quantitative_responses WHERE systems_id = ? AND question_id = ? LIMIT 1),
-           ?, NOW())`,
-        [systemId, expertId, expertId, systemId, questionNumber, feedback]
+      if (!questionNumber) {
+        console.warn("⚠️ [정량] 잘못된 questionNumber:", questionNumber);
+        continue;
+      }
+
+      // ✅ `question_number`로 `question_id` 찾기
+      const [questionResult] = await connection.query(
+        `SELECT id FROM quantitative_questions WHERE question_number = ?`,
+        [questionNumber]
       );
+
+      if (questionResult.length === 0) {
+        console.warn(`⚠️ [정량] ${questionNumber}번 문항이 존재하지 않습니다.`);
+        continue;
+      }
+
+      const { id: questionId } = questionResult[0];
+
+      // ✅ 정량 응답 조회
+      const [responseResult] = await connection.query(
+        `SELECT id, user_id 
+         FROM quantitative_responses 
+         WHERE systems_id = ? AND question_id = ? 
+         ORDER BY updated_at DESC LIMIT 1`,
+        [systemId, questionId]
+      );
+
+      // ✅ 응답 없으면 자동 생성
+      let quantitativeResponseId, user_id;
+      if (responseResult.length === 0) {
+        const [insertResult] = await connection.query(
+          `INSERT INTO quantitative_responses 
+           (systems_id, user_id, question_id, response) 
+           VALUES (?, ?, ?, ?)`,
+          [systemId, expertId, questionId, "이행"]
+        );
+        quantitativeResponseId = insertResult.insertId;
+        user_id = expertId;
+      } else {
+        quantitativeResponseId = responseResult[0].id;
+        user_id = responseResult[0].user_id;
+      }
+
+      // ✅ 정량 피드백 추가 (created_at 제거)
+      await connection.query(
+        `INSERT INTO feedback 
+         (systems_id, user_id, expert_id, quantitative_response_id, feedback)
+         VALUES (?, ?, ?, ?, ?)`,
+        [systemId, user_id, expertId, quantitativeResponseId, feedback]
+      );
+
+      console.log(`✅ [정량] ${questionNumber}번 피드백 저장 완료`);
     }
 
     await connection.commit();
-    connection.release();
-
-    console.log("✅ [피드백 저장 성공]");
-    res.status(200).json({ resultCode: "S-1", msg: "피드백 저장 완료" });
+    res.status(200).json({ resultCode: "S-1", msg: "정량 피드백 저장 완료" });
   } catch (error) {
-    console.error("❌ [ERROR] 피드백 저장 실패:", error.message);
-    res
-      .status(500)
-      .json({ resultCode: "F-1", msg: "서버 오류 발생", error: error.message });
+    await connection.rollback();
+    console.error("❌ [ERROR] 정량 피드백 저장 실패:", error.message);
+    res.status(500).json({
+      resultCode: "F-1",
+      msg: "서버 오류 발생",
+      error: error.message,
+    });
+  } finally {
+    connection.release();
   }
 };
 
 /**
- * 🔹 정성 피드백 제출
+ * 🔹 정성 피드백 제출 (question_number -> question_id 매핑)
  */
 const submitQualitativeFeedback = async (req, res) => {
   const { systemId, expertId, feedbackResponses } = req.body;
@@ -122,48 +161,76 @@ const submitQualitativeFeedback = async (req, res) => {
     });
   }
 
+  const connection = await pool.getConnection();
   try {
-    const connection = await pool.getConnection();
     await connection.beginTransaction();
 
     for (const { questionNumber, feedback } of feedbackResponses) {
-      // ✅ 정성 응답 ID 가져오기
-      const [responseResult] = await connection.query(
-        `SELECT id FROM qualitative_responses 
-         WHERE systems_id = ? AND question_id = ? 
-         ORDER BY updated_at DESC LIMIT 1`,
-        [systemId, questionNumber]
-      );
-
-      if (responseResult.length === 0) {
-        console.warn(`⚠️ 문항 ${questionNumber}에 대한 응답을 찾을 수 없음.`);
+      if (!questionNumber) {
+        console.warn("⚠️ [정성] 잘못된 questionNumber:", questionNumber);
         continue;
       }
 
-      const qualitativeResponseId = responseResult[0].id;
-
-      // ✅ 새로운 피드백 추가
-      await connection.query(
-        `INSERT INTO feedback (systems_id, user_id, expert_id, qualitative_response_id, feedback, created_at)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [systemId, expertId, expertId, qualitativeResponseId, feedback]
+      // ✅ `question_number`로 `question_id` 찾기
+      const [questionResult] = await connection.query(
+        `SELECT id FROM qualitative_questions WHERE question_number = ?`,
+        [questionNumber]
       );
+
+      if (questionResult.length === 0) {
+        console.warn(`⚠️ [정성] ${questionNumber}번 문항이 존재하지 않습니다.`);
+        continue;
+      }
+
+      const { id: questionId } = questionResult[0];
+
+      // ✅ 정성 응답 조회
+      const [responseResult] = await connection.query(
+        `SELECT id, user_id FROM qualitative_responses 
+         WHERE systems_id = ? AND question_id = ? 
+         ORDER BY updated_at DESC LIMIT 1`,
+        [systemId, questionId]
+      );
+
+      // ✅ 응답 없으면 새로 생성
+      let qualitativeResponseId, user_id;
+      if (responseResult.length === 0) {
+        const [insertResult] = await connection.query(
+          `INSERT INTO qualitative_responses 
+           (systems_id, user_id, question_id, response) 
+           VALUES (?, ?, ?, ?)`,
+          [systemId, expertId, questionId, "해당없음"]
+        );
+        qualitativeResponseId = insertResult.insertId;
+        user_id = expertId;
+      } else {
+        qualitativeResponseId = responseResult[0].id;
+        user_id = responseResult[0].user_id;
+      }
+
+      // ✅ 정성 피드백 추가 (created_at 제거)
+      await connection.query(
+        `INSERT INTO feedback 
+         (systems_id, user_id, expert_id, qualitative_response_id, feedback)
+         VALUES (?, ?, ?, ?, ?)`,
+        [systemId, user_id, expertId, qualitativeResponseId, feedback]
+      );
+
+      console.log(`✅ [정성] ${questionNumber}번 피드백 저장 완료`);
     }
 
     await connection.commit();
-    connection.release();
-
-    res.status(200).json({
-      resultCode: "S-1",
-      msg: "정성 피드백 저장 완료.",
-    });
+    res.status(200).json({ resultCode: "S-1", msg: "정성 피드백 저장 완료" });
   } catch (error) {
-    console.error("❌ [submitQualitativeFeedback] 저장 오류:", error.message);
+    await connection.rollback();
+    console.error("❌ [ERROR] 정성 피드백 저장 실패:", error.message);
     res.status(500).json({
       resultCode: "F-1",
       msg: "서버 오류 발생",
       error: error.message,
     });
+  } finally {
+    connection.release();
   }
 };
 
@@ -187,24 +254,41 @@ const getFeedbacks = async (req, res) => {
     });
   }
 
+  let query = `
+  SELECT 
+    f.id AS feedback_id, 
+    f.feedback, 
+    f.created_at, 
+    COALESCE(qq.question_number, qlq.question_number) AS question_number,
+    e.name AS expert_name,
+    CASE 
+      WHEN qr.id IS NOT NULL THEN '정량'
+      WHEN qlr.id IS NOT NULL THEN '정성'
+      ELSE '알 수 없음'
+    END AS feedback_type
+  FROM feedback f
+  JOIN expert e ON f.expert_id = e.id
+  LEFT JOIN quantitative_responses qr ON f.quantitative_response_id = qr.id
+  LEFT JOIN quantitative_questions qq ON qr.question_id = qq.id
+  LEFT JOIN qualitative_responses qlr ON f.qualitative_response_id = qlr.id
+  LEFT JOIN qualitative_questions qlq ON qlr.question_id = qlq.id
+  WHERE f.systems_id = ?
+`;
+
+  const queryParams = [systemId];
+
+  if (questionNumber) {
+    query += ` AND COALESCE(qq.question_number, qlq.question_number) = ?`;
+    queryParams.push(questionNumber);
+  }
+
+  query += ` ORDER BY f.created_at DESC;`;
+
+  console.log("🟡 [QUERY 실행] SQL:", query);
+  console.log("🟡 [QUERY PARAMS] Params:", queryParams);
+
   try {
-    const query = `
-      SELECT f.id AS feedback_id, f.feedback, f.created_at, 
-             qr.question_id AS quantitative_question_id,
-             qlr.question_id AS qualitative_question_id,
-             e.name AS expert_name
-      FROM feedback f
-      JOIN expert e ON f.expert_id = e.id
-      LEFT JOIN quantitative_responses qr ON f.quantitative_response_id = qr.id
-      LEFT JOIN qualitative_responses qlr ON f.qualitative_response_id = qlr.id
-      WHERE f.systems_id = ? 
-      ORDER BY f.created_at DESC;
-    `;
-
-    console.log("🟡 [QUERY 실행] Query:", query);
-    console.log("🟡 [QUERY PARAMS] systemId:", systemId);
-
-    const [results] = await pool.query(query, [systemId]);
+    const [results] = await pool.query(query, queryParams);
 
     console.log("✅ [API 응답] 피드백 데이터:", results);
 
