@@ -94,16 +94,24 @@ const loginSuperUser = async (req, res) => {
         .json({ message: "이메일 또는 비밀번호가 잘못되었습니다." });
     }
 
-    req.session.superuser = {
-      id: superuser.id,
-      email: superuser.email,
-      name: superuser.name,
-      member_type: superuser.member_type,
-    };
+    // 🔥 세션 재생성 (세션 ID 변경)
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error("세션 재생성 오류:", err);
+        return res.status(500).json({ message: "서버 오류 발생" });
+      }
 
-    res.status(200).json({
-      message: "로그인 성공",
-      data: req.session.superuser,
+      req.session.superuser = {
+        id: superuser.id,
+        email: superuser.email,
+        name: superuser.name,
+        member_type: superuser.member_type,
+      };
+
+      res.status(200).json({
+        message: "로그인 성공",
+        data: req.session.superuser,
+      });
     });
   } catch (error) {
     console.error("슈퍼유저 로그인 오류:", error);
@@ -114,12 +122,22 @@ const loginSuperUser = async (req, res) => {
 /**
  * 🔹 슈퍼유저 로그아웃
  */
-const logoutSuperUser = async (req, res) => {
+const logoutSuperUser = (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      console.error("슈퍼유저 로그아웃 오류:", err);
+      console.error("❌ [LOGOUT SUPERUSER] 로그아웃 실패:", err);
       return res.status(500).json({ message: "로그아웃 실패" });
     }
+
+    res.clearCookie("connect.sid", {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+
     res.status(200).json({ message: "로그아웃 성공" });
   });
 };

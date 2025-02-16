@@ -65,20 +65,28 @@ const login = async (req, res) => {
         .json({ message: "이메일 또는 비밀번호가 잘못되었습니다." });
     }
 
-    req.session.user = {
-      id: user[0].id,
-      email: user[0].email,
-      name: user[0].representative_name,
-      member_type: "user",
-    };
+    // 🔥 세션 재생성 (세션 ID 변경)
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error("세션 재생성 오류:", err);
+        return res.status(500).json({ message: "서버 오류 발생" });
+      }
 
-    res.status(200).json({
-      resultCode: "S-1",
-      message: "로그인 성공",
-      data: req.session.user,
+      req.session.user = {
+        id: user[0].id,
+        email: user[0].email,
+        name: user[0].representative_name,
+        member_type: "user",
+      };
+
+      res.status(200).json({
+        resultCode: "S-1",
+        message: "로그인 성공",
+        data: req.session.user,
+      });
     });
   } catch (error) {
-    console.error("❌ [EXPERT LOGIN] 로그인 오류:", error);
+    console.error("❌ [USER LOGIN] 로그인 오류:", error);
     res
       .status(500)
       .json({ resultCode: "F-1", msg: "서버 에러 발생", error: error.message });
@@ -89,9 +97,21 @@ const login = async (req, res) => {
 const logout = (req, res) => {
   req.session.destroy((err) => {
     if (err) {
+      console.error("❌ [LOGOUT] 로그아웃 실패:", err);
       return res.status(500).json({ message: "로그아웃 실패" });
     }
-    res.clearCookie("connect.sid");
+
+    // 🔥 쿠키 제거 (보안 강화)
+    res.clearCookie("connect.sid", {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    // 🔥 캐시 무효화 (Back 버튼 방지)
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+
     res.status(200).json({ message: "로그아웃 성공" });
   });
 };
