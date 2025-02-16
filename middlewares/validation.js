@@ -7,8 +7,8 @@ const validateUserInput = [
     .withMessage("올바른 이메일 형식을 입력하세요.")
     .normalizeEmail(),
   body("password")
-    .isLength({ min: 8, max: 15 })
-    .withMessage("비밀번호는 8~15자여야 합니다.")
+    .isLength({ min: 8, max: 30 })
+    .withMessage("비밀번호는 8~30자여야 합니다.")
     .matches(/[A-Z]/)
     .withMessage("비밀번호에는 최소 하나의 대문자가 포함되어야 합니다.")
     .matches(/[0-9]/)
@@ -22,4 +22,4 @@ const validateUserInput = [
   },
 ];
 
-export { validateUserInput };
+export default validateUserInput; // ✅ default export 추가

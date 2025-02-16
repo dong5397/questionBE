@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import upload from "./routes/upload.js";
 import csrf from "csurf";
+import helmet from "helmet";
 import validateUserInput from "./middlewares/validation.js";
 import { register, login, logout, getUserInfo } from "./routes/auth.js";
 import {
@@ -14,7 +15,6 @@ import {
   loginExpert,
   logoutExpert,
   getExpertInfo,
-  getAllExperts,
 } from "./routes/expert.js";
 import { postsystem, getsystems, deleteSystem } from "./routes/system.js";
 import { sendVerificationCode, verifyCode } from "./routes/email.js";
@@ -45,6 +45,12 @@ import {
   getFeedbacks,
 } from "./routes/feedback.js";
 import {
+  getAllUsers,
+  getUserById,
+  deleteUser,
+  getAllExperts,
+  getExpertById,
+  deleteExpert,
   loginSuperUser,
   matchExpertsToSystem,
   getMatchedExperts,
@@ -200,7 +206,6 @@ app.post("/register/expert", validateUserInput, csrfProtection, registerExpert);
 app.post("/login/expert", csrfProtection, loginExpert);
 app.post("/logout/expert", csrfProtection, logoutExpert);
 app.get("/expert", requireAuth, getExpertInfo);
-app.get("/all-expert", requireAuth, getAllExperts);
 
 // ✅ 슈퍼유저 라우트
 app.post("/login/superuser", csrfProtection, loginSuperUser);
@@ -244,7 +249,28 @@ app.get(
   requireSuperUser,
   SupergetQualitativeResponses
 );
+// ✅ 유저 목록 조회
+app.get("/superuser/users", requireSuperUser, getAllUsers);
 
+// ✅ 특정 유저 조회
+app.get("/superuser/user/:id", requireSuperUser, getUserById);
+
+// ✅ 유저 삭제
+app.delete("/superuser/user/:id", csrfProtection, requireSuperUser, deleteUser);
+
+// ✅ 관리자 목록 조회
+app.get("/superuser/experts", requireSuperUser, getAllExperts);
+
+// ✅ 특정 관리자 조회
+app.get("/superuser/expert/:id", requireSuperUser, getExpertById);
+
+// ✅ 관리자 삭제
+app.delete(
+  "/superuser/expert/:id",
+  csrfProtection,
+  requireSuperUser,
+  deleteExpert
+);
 // 정량 문항 API
 // ✅ 정량 문항 관리 (슈퍼유저 전용)
 app.post(
