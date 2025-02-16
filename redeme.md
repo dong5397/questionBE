@@ -13,3 +13,8 @@
 [3️] 파일 업로드 보안 (MIME 타입 검사, 크기 제한, 경로 차단) - o
 [4️] API Rate Limit 적용 (express-rate-limit으로 속도 제한) - x
 [5️] CORS 보안 강화 (허용 오리진, 메서드, 헤더 제한) - o
+
+## 데이터베이스 및 개인정보 보호 체크리스트
+
+[1] 비밀번호 암호화 (해시 및 솔트 적용) → bcrypt
+[2] SQL Injection 방지 → Prepared Statement 적용
