@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import upload from "./routes/upload.js";
 import csrf from "csurf";
+import validateUserInput from "./middlewares/validation.js";
 import { register, login, logout, getUserInfo } from "./routes/auth.js";
 import {
   registerExpert,
@@ -74,6 +75,25 @@ app.use(express.urlencoded({ extended: true })); // 📌 URL 인코딩된 데이
 // ✅ 미들웨어 설정
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ✅ 보안 헤더 설정 (helmet 적용)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://apis.google.com"], // 필요시 외부 도메인 추가
+        objectSrc: ["'none'"], // 플러그인 및 임베딩 차단
+        upgradeInsecureRequests: [], // HTTP 요청을 HTTPS로 변환
+      },
+    },
+    xssFilter: true, // XSS 공격 방지
+    frameguard: { action: "deny" }, // Clickjacking 방지
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }, // HTTPS 강제
+    noSniff: true, // MIME 스니핑 방지
+    hidePoweredBy: true, // "X-Powered-By: Express" 제거
+  })
+);
 // ✅ CORS 설정
 app.use(
   cors({
@@ -170,13 +190,13 @@ app.post("/upload", upload.single("image"), (req, res) => {
 });
 
 // ✅ 기관회원 라우트
-app.post("/register", csrfProtection, register);
+app.post("/register", validateUserInput, csrfProtection, register);
 app.post("/login", csrfProtection, login);
 app.post("/logout", csrfProtection, logout);
 app.get("/user", requireAuth, getUserInfo);
 
 // ✅ 전문가 회원 라우트
-app.post("/register/expert", csrfProtection, registerExpert);
+app.post("/register/expert", validateUserInput, csrfProtection, registerExpert);
 app.post("/login/expert", csrfProtection, loginExpert);
 app.post("/logout/expert", csrfProtection, logoutExpert);
 app.get("/expert", requireAuth, getExpertInfo);
