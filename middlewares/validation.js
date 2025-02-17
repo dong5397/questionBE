@@ -22,4 +22,4 @@ const validateUserInput = [
   },
 ];
 
-export default validateUserInput; // ✅ default export 추가
+export default validateUserInput;
