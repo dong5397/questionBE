@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import upload from "./routes/upload.js";
+import { getUploadMiddleware } from "./routes/upload.js";
 import csrf from "csurf";
 import helmet from "helmet";
 import validateUserInput from "./middlewares/validation.js";
@@ -181,19 +181,33 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.post("/upload", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    console.log("❌ 파일이 없습니다.");
-    return res.status(400).json({ error: "파일이 없습니다." });
+// 📌 1. 슈퍼유저가 문항 추가할 때 (이미지 업로드)
+app.post(
+  "/upload/question-image",
+  csrfProtection,
+  getUploadMiddleware("image").single("image"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "파일이 없습니다." });
+    }
+
+    res.json({ url: `/uploads/questions/${req.file.filename}` });
   }
+);
 
-  console.log("✅ 파일 업로드 성공:", req.file.path);
+// 📌 2. 사용자가 자가진단 응답할 때 (문서 업로드)
+app.post(
+  "/upload/response-file",
+  csrfProtection,
+  getUploadMiddleware("document").single("file"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "파일이 없습니다." });
+    }
 
-  const imageUrl = `${
-    process.env.SERVER_URL || "http://localhost:3000"
-  }/uploads/${req.file.filename}`;
-  res.json({ url: imageUrl }); // ✅ 클라이언트에 이미지 URL 반환
-});
+    res.json({ url: `/uploads/responses/${req.file.filename}` });
+  }
+);
 
 // ✅ 기관회원 라우트
 app.post("/register", validateUserInput, csrfProtection, register);
