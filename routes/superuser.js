@@ -169,13 +169,24 @@ const deleteExpert = async (req, res) => {
  */
 const getAllSystems = async (req, res) => {
   try {
+    console.log("📡 [DEBUG] getAllSystems API 호출됨");
+
     const query = `
-      SELECT s.id AS systems_id, s.name AS system_name, u.institution_name, u.email AS user_email
+      SELECT 
+        s.id AS systems_id, 
+        s.name AS system_name, 
+        s.user_id,  
+        COALESCE(u.institution_name, 'N/A') AS institution_name,  
+        COALESCE(u.email, 'N/A') AS user_email
       FROM systems s
-      JOIN User u ON s.user_id = u.id;
+      LEFT JOIN user u ON s.user_id = u.id;  
     `;
 
+    console.log("📡 실행할 SQL 쿼리:", query);
+
     const [rows] = await pool.query(query);
+
+    console.log("✅ 조회된 시스템 개수:", rows.length);
 
     res.status(200).json({
       resultCode: "S-1",
@@ -183,7 +194,8 @@ const getAllSystems = async (req, res) => {
       data: rows,
     });
   } catch (error) {
-    console.error("❌ [GET ALL SYSTEMS] 조회 오류:", error);
+    console.error("❌ [GET ALL SYSTEMS] 조회 오류:", error.message);
+
     res.status(500).json({
       resultCode: "F-1",
       msg: "서버 에러 발생",
@@ -191,6 +203,7 @@ const getAllSystems = async (req, res) => {
     });
   }
 };
+
 /**
  * 🔹 시스템에 매칭된 전문가 조회
  */
@@ -365,18 +378,63 @@ const SupergetQualitativeQuestions = async (req, res) => {
 };
 
 /**
- * 🔹 슈퍼유저용 정량적 응답 조회
+ * 🔹 슈퍼유저용 정량적 응답 조회 (특정 사용자 & 시스템)
  */
 const SupergetQuantitativeResponses = async (req, res) => {
+  const { systemId } = req.params;
+
+  if (!systemId) {
+    return res.status(400).json({
+      resultCode: "F-2",
+      msg: "🚨 systemId가 필요합니다.",
+    });
+  }
+
   try {
-    const [rows] = await pool.query("SELECT * FROM quantitative_responses");
+    // 🔹 해당 시스템을 생성한 유저 찾기
+    const [userRows] = await pool.query(
+      "SELECT user_id FROM systems WHERE id = ?",
+      [systemId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        resultCode: "F-3",
+        msg: "🚨 해당 시스템을 생성한 유저가 존재하지 않습니다.",
+      });
+    }
+
+    const userId = userRows[0].user_id;
+
+    // 🔹 해당 유저의 정량적 응답 가져오기
+    const query = `
+      SELECT 
+        qq.question_number, 
+        qq.question, 
+        qq.evaluation_criteria, 
+        qq.legal_basis, 
+        qq.score,
+        COALESCE(qr.response, '-') AS response, 
+        COALESCE(qr.additional_comment, '') AS additional_comment, 
+        COALESCE(qr.file_path, '') AS file_path
+      FROM quantitative_questions qq
+      LEFT JOIN quantitative_responses qr 
+        ON qq.id = qr.question_id 
+        AND qr.systems_id = ? 
+        AND qr.user_id = ?
+      ORDER BY qq.question_number;
+    `;
+
+    const [responseRows] = await pool.query(query, [systemId, userId]);
+
     res.status(200).json({
       resultCode: "S-1",
-      msg: "정량적 응답 조회 성공",
-      data: rows,
+      msg: "🚀 특정 시스템의 정량적 응답 조회 성공",
+      data: responseRows,
+      userId,
     });
   } catch (error) {
-    console.error("❌ 정량적 응답 조회 오류:", error);
+    console.error("❌ [ERROR] 시스템 정량적 응답 조회 오류:", error);
     res.status(500).json({
       resultCode: "F-1",
       msg: "서버 에러 발생",
@@ -384,20 +442,64 @@ const SupergetQuantitativeResponses = async (req, res) => {
     });
   }
 };
-
 /**
- * 🔹 슈퍼유저용 정성적 응답 조회
+ * 🔹 슈퍼유저용 정성적 응답 조회 (특정 사용자 & 시스템)
  */
 const SupergetQualitativeResponses = async (req, res) => {
+  const { systemId } = req.params;
+
+  if (!systemId) {
+    return res.status(400).json({
+      resultCode: "F-2",
+      msg: "🚨 systemId가 필요합니다.",
+    });
+  }
+
   try {
-    const [rows] = await pool.query("SELECT * FROM qualitative_responses"); // ✅ 테이블명 수정
+    // 🔹 해당 시스템을 만든 유저 찾기
+    const [userRows] = await pool.query(
+      "SELECT user_id FROM systems WHERE id = ?",
+      [systemId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        resultCode: "F-3",
+        msg: "🚨 해당 시스템을 생성한 유저가 존재하지 않습니다.",
+      });
+    }
+
+    const userId = userRows[0].user_id;
+
+    // 🔹 해당 유저의 정성적 응답 가져오기
+    const query = `
+      SELECT 
+        qq.question_number, 
+        qq.indicator, 
+        qq.indicator_definition, 
+        qq.evaluation_criteria, 
+        qq.reference_info,
+        COALESCE(qr.response, '-') AS response, 
+        COALESCE(qr.additional_comment, '') AS additional_comment, 
+        COALESCE(qr.file_path, '') AS file_path
+      FROM qualitative_questions qq
+      LEFT JOIN qualitative_responses qr 
+        ON qq.id = qr.question_id 
+        AND qr.systems_id = ? 
+        AND qr.user_id = ?
+      ORDER BY qq.question_number;
+    `;
+
+    const [responseRows] = await pool.query(query, [systemId, userId]);
+
     res.status(200).json({
       resultCode: "S-1",
-      msg: "정성적 응답 조회 성공",
-      data: rows,
+      msg: "🚀 특정 시스템의 정성적 응답 조회 성공",
+      data: responseRows,
+      userId,
     });
   } catch (error) {
-    console.error("❌ 정성적 응답 조회 오류:", error);
+    console.error("❌ [ERROR] 시스템 정성적 응답 조회 오류:", error);
     res.status(500).json({
       resultCode: "F-1",
       msg: "서버 에러 발생",

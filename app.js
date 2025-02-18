@@ -243,26 +243,34 @@ app.delete(
   deleteSystemBySuperUser
 );
 app.get("/system/:id", requireSuperUser, getSystemById);
+// ✅ 슈퍼유저용 정량적 질문 조회
 app.get(
   "/super/selftest/quantitative",
   requireSuperUser,
   SupergetQuantitativeQuestions
 );
+
+// ✅ 슈퍼유저용 정성적 질문 조회
 app.get(
   "/super/selftest/qualitative",
   requireSuperUser,
   SupergetQualitativeQuestions
 );
+
+// ✅ 특정 시스템의 정량적 응답 조회 (userId 없이 systemId만 사용)
 app.get(
-  "/super/selftest/quantitative/responses/systemId/:id",
+  "/super/selftest/quantitative/responses/:systemId",
   requireSuperUser,
   SupergetQuantitativeResponses
 );
+
+// ✅ 특정 시스템의 정성적 응답 조회
 app.get(
-  "/super/selftest/qualitative/responses/systemId/:id",
+  "/super/selftest/qualitative/responses/:systemId",
   requireSuperUser,
   SupergetQualitativeResponses
 );
+
 // ✅ 유저 목록 조회
 app.get("/superuser/users", requireSuperUser, getAllUsers);
 
@@ -391,7 +399,7 @@ app.post(
   requireAuth,
   updateFeedbackStatus
 );
-app.get("/selftest/feedback", requireAuth, getFeedbacks);
+app.get("/selftest/feedback", getFeedbacks);
 
 // ✅ 평가 결과 API 라우트
 app.post("/assessment/complete", csrfProtection, requireAuth, completeSelfTest);
